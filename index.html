@@ -158,32 +158,32 @@ let kp={
 
 function initKeeper(){
   const g=gr();
-  // Kaleci kale genisliginin %30'u kadar, kale alt çizgisinde
-  kp.displayW = g.w * 0.30;
+  kp.displayW = g.w * 0.24;
   kp.displayH = kp.displayW * (K_SH/K_SW);
   kp.x = g.x + g.w/2;
-  kp.y = g.y + g.h; // Kale alt çizgisi tam üstünde
+  // Ayaklar kale alt çizgisinde
+  kp.y = g.y + g.h;
   kp.frame=0; kp.phase='idle'; kp.t=0;
 }
 
 function drawKeeper(){
   if(!keeperImg.complete||!keeperImg.naturalWidth) return;
   const kw=kp.displayW, kh=kp.displayH;
-  // Frame seç — frame3 = frame2'yi mirror et
   const useFrame = kp.frame===3 ? 2 : kp.frame;
   const flip = kp.frame===3;
+  // drawY: sprite içinde ayak %63.4 aşağıda
+  const drawY = kp.y - kh*K_FOOT;
 
   ctx.save();
-  // Gölge
   ctx.globalAlpha=0.2;ctx.fillStyle='#000';
-  ctx.beginPath();ctx.ellipse(kp.x,kp.y+kh*0.01,kw*0.3,kh*0.025,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(kp.x,kp.y,kw*0.3,kh*0.02,0,0,Math.PI*2);ctx.fill();
   ctx.globalAlpha=1;
 
   if(flip){
     ctx.translate(kp.x+kw/2,0);ctx.scale(-1,1);
-    ctx.drawImage(keeperImg,useFrame*K_SW,0,K_SW,K_SH,-kw,kp.y-kh,kw,kh);
+    ctx.drawImage(keeperImg,useFrame*K_SW,0,K_SW,K_SH,-kw,drawY,kw,kh);
   } else {
-    ctx.drawImage(keeperImg,useFrame*K_SW,0,K_SW,K_SH,kp.x-kw/2,kp.y-kh,kw,kh);
+    ctx.drawImage(keeperImg,useFrame*K_SW,0,K_SW,K_SH,kp.x-kw/2,drawY,kw,kh);
   }
   ctx.restore();
 }
@@ -210,23 +210,30 @@ function updateKeeper(dt){
 let pl={frame:0,x:0,y:0,displayW:0,displayH:0,phase:'idle',t:0};
 
 function initPlayer(){
-  // Arda Güler - gerçekçi büyüklük, penaltı noktası gerisinde
-  pl.displayW = Math.min(W,H)*0.32;
+  pl.displayW = Math.min(W,H)*0.30;
   pl.displayH = pl.displayW*(P_SH/P_SW);
-  // Penaltı noktasının hemen arkasında, yatay ortada
   pl.x = sx(PENALTY_SPOT.x);
-  pl.y = sy(PENALTY_SPOT.y) + pl.displayH*0.12;
+  // Ayaklar penaltı noktasında: sprite içinde ayak %75.3 aşağıda
+  // pl.y = ayak y konumu → drawImage y = pl.y - displayH*0.753
+  pl.y = sy(PENALTY_SPOT.y);
   pl.frame=0; pl.phase='idle'; pl.t=0;
 }
+
+// Player ayak offset (sprite analizi: ayak y=642/853=0.753)
+const P_FOOT = 0.753;
+// Keeper ayak offset (sprite analizi: ayak y=541/853=0.634)
+const K_FOOT = 0.634;
 
 function drawPlayer(){
   if(!playerImg.complete||!playerImg.naturalWidth) return;
   const pw=pl.displayW, ph=pl.displayH;
+  // drawY: sprite'ı ayak noktasına hizala
+  const drawY = pl.y - ph*P_FOOT;
   ctx.save();
-  ctx.globalAlpha=0.2;ctx.fillStyle='#000';
-  ctx.beginPath();ctx.ellipse(pl.x,pl.y,pw*0.22,ph*0.018,0,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=0.25;ctx.fillStyle='#000';
+  ctx.beginPath();ctx.ellipse(pl.x,pl.y,pw*0.18,ph*0.015,0,0,Math.PI*2);ctx.fill();
   ctx.globalAlpha=1;
-  ctx.drawImage(playerImg,pl.frame*P_SW,0,P_SW,P_SH,pl.x-pw/2,pl.y-ph,pw,ph);
+  ctx.drawImage(playerImg,pl.frame*P_SW,0,P_SW,P_SH,pl.x-pw/2,drawY,pw,ph);
   ctx.restore();
 }
 
