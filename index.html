@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Pusulabet Penaltı ⚽</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--gold:#FFD700;--orange:#FF6B00;--green:#00E676;--red:#FF1744;}
+body{background:#0a2a0a;font-family:'Rajdhani',sans-serif;overflow:hidden;height:100dvh;width:100vw;user-select:none;-webkit-user-select:none;touch-action:manipulation;}
+
+#gc{position:relative;width:100vw;height:100dvh;overflow:hidden;}
+
+#bgCanvas{position:absolute;inset:0;width:100%;height:100%;}
+
+#darkOverlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0.1) 0%,rgba(0,0,0,0.0) 45%,rgba(0,0,0,0.45) 100%);pointer-events:none;z-index:1;}
+
+/* ── KALE ZONE — görseldeki kaleyle hizalı ── */
+#goalZone{
+  position:absolute;
+  /* Görsel 1536x1024, kale yaklaşık: top=%7, left=%15, w=%70, h=%40 */
+  top:7%; left:15%; width:70%; height:41%;
+  z-index:10; cursor:crosshair;
+}
+.goal-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  grid-template-rows:repeat(3,1fr);
+  width:100%;height:100%;gap:3px;
+}
+.goal-cell{
+  border:1px solid rgba(255,255,255,0.0);
+  border-radius:3px;
+  transition:background 0.12s,border-color 0.12s;
+}
+.goal-cell:hover,
+.goal-cell:active{
+  background:rgba(255,215,0,0.22);
+  border-color:rgba(255,215,0,0.7);
+  box-shadow:inset 0 0 20px rgba(255,215,0,0.15);
+}
+
+/* ── GOL FLASH ── */
+#netFlash{
+  position:absolute;top:7%;left:15%;width:70%;height:41%;
+  z-index:25;pointer-events:none;opacity:0;border-radius:3px;
+  background:radial-gradient(ellipse at center,rgba(0,230,118,0.65) 0%,transparent 70%);
+}
+#netFlash.flash{animation:netAnim 0.75s ease-out forwards;}
+@keyframes netAnim{0%{opacity:0;transform:scale(0.75)}35%{opacity:1;transform:scale(1.06)}100%{opacity:0;transform:scale(1.12)}}
+
+/* ── TOP ── */
+#ball{
+  position:absolute;
+  width:58px;height:58px;
+  bottom:30%;left:50%;
+  transform:translateX(-50%);
+  z-index:20;pointer-events:none;
+  filter:drop-shadow(0 0 16px rgba(180,255,150,0.9));
+  transition:none;
+}
+#ball.shooting{transition:all 0.55s cubic-bezier(0.25,0.46,0.45,0.94);}
+
+/* ── KALECİ — görüntüdeki mavi formayla eşleştirildi ── */
+#keeper{
+  position:absolute;
+  top:16%; left:50%;
+  transform:translateX(-50%);
+  width:9%; max-width:58px; min-width:38px;
+  z-index:15; pointer-events:none;
+  transition:left 0.27s cubic-bezier(0.25,0.46,0.45,0.94);
+  filter:drop-shadow(1px 3px 10px rgba(0,0,0,0.95));
+}
+#keeperSvg{transition:transform 0.2s;}
+
+/* ── HUD ── */
+#hud{
+  position:absolute;top:0;left:0;right:0;z-index:30;
+  display:flex;justify-content:space-between;align-items:flex-start;
+  padding:14px 20px 0;
+  background:linear-gradient(to bottom,rgba(0,0,0,0.72) 0%,transparent 100%);
+}
+.hud-block{text-align:center;}
+.hud-label{font-family:'Bebas Neue',cursive;font-size:11px;color:rgba(255,255,255,0.48);letter-spacing:2px;display:block;}
+.hud-val{font-family:'Bebas Neue',cursive;font-size:38px;line-height:1;color:var(--gold);text-shadow:0 0 22px rgba(255,215,0,0.65);}
+.hud-val.g{color:var(--green);text-shadow:0 0 22px rgba(0,230,118,0.65);}
+.hud-val.r{color:var(--red);text-shadow:0 0 22px rgba(255,23,68,0.65);}
+
+/* ── ATIŞLAR ── */
+#attempts{
+  position:absolute;bottom:26%;left:50%;transform:translateX(-50%);
+  display:flex;gap:10px;z-index:30;
+}
+.dot{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,0.32);background:transparent;transition:all 0.3s;}
+.dot.goal{background:var(--green);border-color:var(--green);box-shadow:0 0 10px var(--green);}
+.dot.miss{background:var(--red);border-color:var(--red);box-shadow:0 0 10px var(--red);}
+
+/* ── BANNER ── */
+#shootBanner{
+  position:absolute;bottom:15%;left:50%;transform:translateX(-50%);
+  background:linear-gradient(135deg,rgba(255,107,0,0.96),rgba(210,20,0,0.96));
+  color:#fff;font-family:'Bebas Neue',cursive;font-size:20px;letter-spacing:3px;
+  padding:11px 32px;border-radius:50px;
+  border:1px solid rgba(255,255,255,0.22);
+  box-shadow:0 4px 24px rgba(255,107,0,0.5),inset 0 1px 0 rgba(255,255,255,0.18);
+  z-index:30;white-space:nowrap;
+  animation:pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{transform:translateX(-50%) scale(1);}50%{transform:translateX(-50%) scale(1.045);}}
+
+/* ── SONUÇ ── */
+#resOverlay{
+  position:absolute;inset:0;z-index:50;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  opacity:0;pointer-events:none;transition:opacity 0.32s;
+}
+#resOverlay.show{opacity:1;pointer-events:auto;}
+.res-bg{position:absolute;inset:0;background:rgba(0,0,0,0.52);backdrop-filter:blur(4px);}
+.res-emoji{font-size:76px;position:relative;z-index:1;animation:bIn 0.5s cubic-bezier(0.36,0.07,0.19,0.97);}
+@keyframes bIn{0%{transform:scale(0.15);opacity:0}55%{transform:scale(1.2)}100%{transform:scale(1);opacity:1}}
+.res-text{font-family:'Bebas Neue',cursive;font-size:60px;letter-spacing:5px;position:relative;z-index:1;text-shadow:0 4px 22px rgba(0,0,0,0.9);}
+.res-text.gt{color:var(--green);}
+.res-text.mt{color:var(--red);}
+.res-sub{font-size:17px;color:rgba(255,255,255,0.82);position:relative;z-index:1;letter-spacing:1px;}
+
+/* ── FİNAL ── */
+#finalOverlay{position:absolute;inset:0;z-index:60;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
+#finalOverlay.show{display:flex;}
+.fin-bg{position:absolute;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(10px);}
+.fin-card{position:relative;z-index:1;background:linear-gradient(145deg,rgba(255,107,0,0.1),rgba(0,0,0,0.65));border:1px solid rgba(255,215,0,0.28);border-radius:22px;padding:32px 38px;text-align:center;max-width:320px;width:88%;box-shadow:0 20px 64px rgba(0,0,0,0.65),inset 0 1px 0 rgba(255,255,255,0.07);}
+.fin-trophy{font-size:64px;margin-bottom:6px;}
+.fin-title{font-family:'Bebas Neue',cursive;font-size:46px;letter-spacing:3px;margin-bottom:4px;}
+.fin-score{font-family:'Bebas Neue',cursive;font-size:30px;color:var(--gold);margin-bottom:10px;}
+.fin-msg{font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;margin-bottom:20px;}
+.btn-p{background:linear-gradient(135deg,var(--orange),#e02000);color:#fff;font-family:'Bebas Neue',cursive;font-size:21px;letter-spacing:2px;padding:14px 36px;border:none;border-radius:50px;cursor:pointer;width:100%;box-shadow:0 6px 20px rgba(255,107,0,0.42);transition:transform 0.14s;}
+.btn-p:active{transform:scale(0.97);}
+.btn-s{background:transparent;color:rgba(255,255,255,0.52);font-size:14px;border:1px solid rgba(255,255,255,0.16);border-radius:50px;padding:10px 28px;cursor:pointer;width:100%;margin-top:8px;transition:all 0.18s;}
+.btn-s:hover{color:#fff;border-color:rgba(255,255,255,0.36);}
+
+/* ── BAŞLANGIÇ ── */
+#startScreen{position:absolute;inset:0;z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:46px;}
+.st-bg{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,0.9) 0%,rgba(0,0,0,0.22) 55%,transparent 100%);}
+.st-card{position:relative;z-index:1;text-align:center;width:90%;max-width:340px;}
+.st-brand{font-family:'Bebas Neue',cursive;font-size:12px;letter-spacing:6px;color:var(--orange);margin-bottom:4px;}
+.st-title{font-family:'Bebas Neue',cursive;font-size:62px;color:#fff;line-height:0.9;letter-spacing:2px;text-shadow:0 4px 32px rgba(0,0,0,0.9);margin-bottom:10px;}
+.st-title span{color:var(--gold);}
+.st-desc{font-size:15px;color:rgba(255,255,255,0.68);margin-bottom:22px;line-height:1.5;}
+.st-rules{display:flex;justify-content:center;gap:26px;margin-bottom:24px;}
+.ri{text-align:center;}
+.ri-icon{font-size:24px;}
+.ri-text{font-size:12px;color:rgba(255,255,255,0.5);display:block;margin-top:3px;}
+</style>
+</head>
+<body>
+<div id="gc">
+
+  <canvas id="bgCanvas"></canvas>
+  <div id="darkOverlay"></div>
+
+  <div id="goalZone"><div class="goal-grid" id="goalGrid"></div></div>
+  <div id="netFlash"></div>
+
+  <!-- Top — gerçek futbol topu -->
+  <div id="ball">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="ballGrad" cx="38%" cy="32%" r="62%">
+          <stop offset="0%" stop-color="#fff"/>
+          <stop offset="100%" stop-color="#c8c8c8"/>
+        </radialGradient>
+        <radialGradient id="shine" cx="35%" cy="28%" r="30%">
+          <stop offset="0%" stop-color="rgba(255,255,255,0.85)"/>
+          <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+        </radialGradient>
+      </defs>
+      <circle cx="50" cy="50" r="48" fill="url(#ballGrad)" stroke="#aaa" stroke-width="1"/>
+      <!-- Ana siyah pentagon -->
+      <path d="M50 10 L65 30 L88 30 L76 50 L83 72 L50 60 L17 72 L24 50 L12 30 L35 30 Z" fill="#111" opacity="0.85"/>
+      <!-- Yan pentagon ipuçları -->
+      <path d="M50 10 L35 30 L50 22 L65 30 Z" fill="#222" opacity="0.4"/>
+      <path d="M50 60 L17 72 L22 60 Z" fill="#222" opacity="0.3"/>
+      <path d="M50 60 L83 72 L78 60 Z" fill="#222" opacity="0.3"/>
+      <!-- Parlaklık -->
+      <circle cx="50" cy="50" r="48" fill="url(#shine)"/>
+    </svg>
+  </div>
+
+  <!-- KALECİ — görseldeki koyu mavi forma, siyah şort, eldiven, uzanma pozu -->
+  <div id="keeper">
+    <svg id="keeperSvg" viewBox="0 0 90 180" xmlns="http://www.w3.org/2000/svg">
+      <!-- Saç (koyu kahve) -->
+      <ellipse cx="45" cy="18" rx="17" ry="11" fill="#1a0e06"/>
+      <!-- Kafa -->
+      <ellipse cx="45" cy="28" rx="16" ry="19" fill="#FDBCB4"/>
+      <!-- Yüz detayları -->
+      <ellipse cx="38" cy="25" rx="2.5" ry="3" fill="#2a1a0a"/>
+      <ellipse cx="52" cy="25" rx="2.5" ry="3" fill="#2a1a0a"/>
+      <!-- Kaş sol -->
+      <path d="M35 21 Q38 19 41 21" fill="none" stroke="#2a1a0a" stroke-width="1.5"/>
+      <!-- Kaş sağ -->
+      <path d="M49 21 Q52 19 55 21" fill="none" stroke="#2a1a0a" stroke-width="1.5"/>
+      <!-- Ağız -->
+      <path d="M40 35 Q45 39 50 35" fill="none" stroke="#c0705a" stroke-width="1.8" stroke-linecap="round"/>
+      <!-- Boyun -->
+      <rect x="37" y="45" width="16" height="10" rx="3" fill="#FDBCB4"/>
+      <!-- FORMA — koyu lacivert/mavi, görseldeki kaleci rengi -->
+      <!-- Gövde -->
+      <path d="M22 56 Q14 64 12 92 L18 94 Q21 74 28 70 L28 108 L62 108 L62 70 Q69 74 72 94 L78 92 Q76 64 68 56 Q58 48 45 48 Q32 48 22 56Z" fill="#0D1B6E"/>
+      <!-- Forma çizgisi -->
+      <line x1="45" y1="48" x2="45" y2="108" stroke="#2535AA" stroke-width="2" opacity="0.5"/>
+      <!-- Yaka -->
+      <path d="M36 48 Q45 55 54 48" fill="none" stroke="#3D52D5" stroke-width="2.5"/>
+      <!-- Kol SOL — kalecinin dışarı uzandığı poz -->
+      <path d="M22 60 Q6 76 2 96" stroke="#0D1B6E" stroke-width="13" stroke-linecap="round" fill="none"/>
+      <!-- Eldiven sol — beyaz büyük -->
+      <ellipse cx="2" cy="99" rx="9" ry="7" fill="#F0F0F0"/>
+      <ellipse cx="2" cy="99" rx="9" ry="7" fill="none" stroke="#ccc" stroke-width="1"/>
+      <!-- Parmak çizgileri sol -->
+      <line x1="-3" y1="94" x2="-4" y2="103" stroke="#bbb" stroke-width="1"/>
+      <line x1="2" y1="92" x2="2" y2="101" stroke="#bbb" stroke-width="1"/>
+      <line x1="7" y1="93" x2="8" y2="102" stroke="#bbb" stroke-width="1"/>
+      <!-- Kol SAĞ -->
+      <path d="M68 60 Q84 76 88 96" stroke="#0D1B6E" stroke-width="13" stroke-linecap="round" fill="none"/>
+      <!-- Eldiven sağ -->
+      <ellipse cx="88" cy="99" rx="9" ry="7" fill="#F0F0F0"/>
+      <ellipse cx="88" cy="99" rx="9" ry="7" fill="none" stroke="#ccc" stroke-width="1"/>
+      <line x1="83" y1="94" x2="82" y2="103" stroke="#bbb" stroke-width="1"/>
+      <line x1="88" y1="92" x2="88" y2="101" stroke="#bbb" stroke-width="1"/>
+      <line x1="93" y1="93" x2="94" y2="102" stroke="#bbb" stroke-width="1"/>
+      <!-- ŞORT siyah -->
+      <path d="M28 108 L25 140 L43 140 L45 122 L47 140 L65 140 L62 108 Z" fill="#111"/>
+      <!-- Şort bant -->
+      <rect x="28" y="108" width="34" height="5" fill="#222" opacity="0.6"/>
+      <!-- ÇORAP sol — lacivert beyaz şeritli -->
+      <rect x="25" y="140" width="15" height="28" rx="4" fill="#0D1B6E"/>
+      <rect x="25" y="140" width="15" height="6" rx="2" fill="white" opacity="0.7"/>
+      <rect x="25" y="148" width="15" height="3" fill="white" opacity="0.4"/>
+      <!-- ÇORAP sağ -->
+      <rect x="50" y="140" width="15" height="28" rx="4" fill="#0D1B6E"/>
+      <rect x="50" y="140" width="15" height="6" rx="2" fill="white" opacity="0.7"/>
+      <rect x="50" y="148" width="15" height="3" fill="white" opacity="0.4"/>
+      <!-- Ayakkabı sol -->
+      <ellipse cx="32" cy="170" rx="11" ry="6" fill="#1a1a1a"/>
+      <ellipse cx="32" cy="168" rx="9" ry="4" fill="#2a2a2a"/>
+      <!-- Ayakkabı sağ -->
+      <ellipse cx="58" cy="170" rx="11" ry="6" fill="#1a1a1a"/>
+      <ellipse cx="58" cy="168" rx="9" ry="4" fill="#2a2a2a"/>
+    </svg>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-block"><span class="hud-label">GOL</span><div class="hud-val g" id="scoreGoal">0</div></div>
+    <div class="hud-block"><span class="hud-label">KALAN</span><div class="hud-val" id="scoreRemain">5</div></div>
+    <div class="hud-block"><span class="hud-label">KAÇTI</span><div class="hud-val r" id="scoreMiss">0</div></div>
+  </div>
+
+  <div id="attempts"></div>
+  <div id="shootBanner">⚽ HEDEF SEÇ VE VURGULA!</div>
+
+  <!-- Kısa sonuç -->
+  <div id="resOverlay">
+    <div class="res-bg"></div>
+    <div class="res-emoji" id="resEmoji">⚽</div>
+    <div class="res-text" id="resText">GOL!</div>
+    <div class="res-sub" id="resSub"></div>
+  </div>
+
+  <!-- Final -->
+  <div id="finalOverlay">
+    <div class="fin-bg"></div>
+    <div class="fin-card">
+      <div class="fin-trophy" id="finTrophy">🏆</div>
+      <div class="fin-title" id="finTitle">TEBRİKLER!</div>
+      <div class="fin-score" id="finScore">5 / 5 GOL</div>
+      <div class="fin-msg" id="finMsg">Mükemmel performans!</div>
+      <button class="btn-p" onclick="resetGame()">🔄 TEKRAR OYNA</button>
+      <button class="btn-s" onclick="shareResult()">📤 Skoru Paylaş</button>
+    </div>
+  </div>
+
+  <!-- Başlangıç -->
+  <div id="startScreen">
+    <div class="st-bg"></div>
+    <div class="st-card">
+      <div class="st-brand">PUSULABET</div>
+      <div class="st-title">PENALTI<br><span>ŞUTLARI</span></div>
+      <div class="st-desc">Arda Güler gibi kaleciyi geç!<br>9 köşe, 5 şut, sonsuz heyecan.</div>
+      <div class="st-rules">
+        <div class="ri"><div class="ri-icon">⚽</div><span class="ri-text">5 Atış</span></div>
+        <div class="ri"><div class="ri-icon">🥅</div><span class="ri-text">9 Bölge</span></div>
+        <div class="ri"><div class="ri-icon">🤖</div><span class="ri-text">Akıllı Kaleci</span></div>
+      </div>
+      <button class="btn-p" onclick="startGame()" style="font-size:25px;padding:16px;">⚽ OYUNU BAŞLAT</button>
+    </div>
+  </div>
+
+</div><!-- /gc -->
+
+<script>
+// ── Telegram ──
+let tg=null;
+try{tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();tg.setHeaderColor('#000000');}}catch(e){}
+
+// ── Arka planı Canvas'a çiz (cover mantığı) ──
+(function(){
+  const canvas=document.getElementById('bgCanvas');
+  const ctx=canvas.getContext('2d');
+  const img=new Image();
+
+  function draw(){
+    canvas.width=window.innerWidth;
+    canvas.height=window.innerHeight;
+    const iw=img.naturalWidth||1536,ih=img.naturalHeight||1024;
+    const cw=canvas.width,ch=canvas.height;
+    const s=Math.max(cw/iw,ch/ih);
+    const dw=iw*s,dh=ih*s;
+    ctx.drawImage(img,(cw-dw)/2,(ch-dh)/2,dw,dh);
+  }
+
+  img.onload=function(){draw();window.addEventListener('resize',draw);};
+
+  img.onerror=function(){
+    // Fallback: güzel saha gradyanı
+    canvas.width=window.innerWidth;canvas.height=window.innerHeight;
+    const gr=ctx.createLinearGradient(0,0,0,canvas.height);
+    gr.addColorStop(0,'#0d3b0d');gr.addColorStop(0.5,'#1a5c1a');gr.addColorStop(1,'#0a2a0a');
+    ctx.fillStyle=gr;ctx.fillRect(0,0,canvas.width,canvas.height);
+    // Saha çizgileri
+    ctx.strokeStyle='rgba(255,255,255,0.12)';ctx.lineWidth=2;
+    const w=canvas.width,h=canvas.height;
+    ctx.strokeRect(w*.14,h*.06,w*.72,h*.42);  // kale dış
+    ctx.strokeRect(w*.28,h*.06,w*.44,h*.22);  // küçük alan
+    // kale ağı dikey çizgiler
+    for(let i=1;i<4;i++)ctx.strokeRect(w*.14+w*.72/3*i,h*.06,0,h*.42);
+    for(let j=1;j<4;j++)ctx.strokeRect(w*.14,h*.06+h*.42/3*j,w*.72,0);
+    window.addEventListener('resize',function(){img.onerror();});
+  };
+
+  img.src='bg.png';
+})();
+
+// ── Oyun ──
+const TOTAL=5;
+let goals=0,misses=0,shots=0,gameActive=false,canShoot=true;
+
+const goalMsgs=["Net köşe! 🔥","Tam isabet! ✨","Harika şut! 💥","Üst köşe! 🎯","Geçilmez! ⚡","Ağları sarstı! 🌊"];
+const missMsgs=["Kaleci tuttu! 🧤","Az kaldı! 😅","Direğe çarptı!","Kaçtı! 😬","Kaleci sezdi! 👀","Kurtarış! 🙌"];
+
+function buildGrid(){
+  const g=document.getElementById('goalGrid');g.innerHTML='';
+  for(let r=0;r<3;r++)for(let c=0;c<3;c++){
+    const cell=document.createElement('div');
+    cell.className='goal-cell';cell.dataset.r=r;cell.dataset.c=c;
+    cell.addEventListener('click',()=>shoot(r,c));
+    cell.addEventListener('touchend',e=>{e.preventDefault();shoot(r,c);});
+    g.appendChild(cell);
+  }
+}
+
+function buildDots(){
+  const cont=document.getElementById('attempts');cont.innerHTML='';
+  for(let i=0;i<TOTAL;i++){
+    const d=document.createElement('div');d.className='dot';d.id='dot-'+i;cont.appendChild(d);
+  }
+}
+
+// Kaleci hareketi — görüntüdeki konuma uygun %
+function moveKeeper(targetCol){
+  const kp=document.getElementById('keeper');
+  // Sol: kale sol direği civarı, Sağ: sağ direk, Orta: merkez
+  const sides={
+    left:['18%','20%','16%'],
+    center:['44%','47%','50%'],
+    right:['72%','70%','74%']
+  };
+  const rand=Math.random();
+  let side;
+  if(targetCol===0)      side=rand<0.50?'left':(rand<0.75?'center':'right');
+  else if(targetCol===2) side=rand<0.50?'right':(rand<0.75?'center':'left');
+  else                   side=rand<0.33?'left':(rand<0.66?'center':'right');
+
+  const pos=sides[side][Math.floor(Math.random()*3)];
+  kp.style.left=pos;
+
+  // Kaleci yüzü hedefe dönsün
+  const svg=document.getElementById('keeperSvg');
+  svg.style.transform=(side==='left')?'scaleX(-1)':'scaleX(1)';
+  return side;
+}
+
+async function shoot(row,col){
+  if(!canShoot||!gameActive)return;
+  canShoot=false;
+
+  const ball=document.getElementById('ball');
+  const gz=document.getElementById('goalZone');
+  document.getElementById('shootBanner').style.display='none';
+
+  const zr=gz.getBoundingClientRect();
+  const cw2=zr.width/3,ch2=zr.height/3;
+  const tx=zr.left+cw2*col+cw2/2;
+  const ty=zr.top+ch2*row+ch2/2;
+  const br=ball.getBoundingClientRect();
+  const bx=br.left+br.width/2,by=br.top+br.height/2;
+
+  document.getElementById('keeper').style.transition='left 0.27s cubic-bezier(0.25,0.46,0.45,0.94)';
+  const ks=moveKeeper(col);
+
+  ball.classList.add('shooting');
+  ball.style.transform=`translateX(calc(-50% + ${tx-bx}px)) translateY(${ty-by}px) scale(0.35)`;
+
+  const colMap={0:'left',1:'center',2:'right'};
+  const ts=colMap[col];
+  let saved=false;
+  if(ks===ts){
+    if(row===0&&col!==1)saved=Math.random()<0.20;   // Üst köşe — zor
+    else if(row===0)    saved=Math.random()<0.30;   // Üst orta
+    else                saved=Math.random()<0.60;   // Alt/orta
+  }else{
+    saved=Math.random()<0.04;  // Yanlış tarafa atladı
+  }
+
+  await sleep(570);
+
+  shots++;
+  const dot=document.getElementById('dot-'+(shots-1));
+
+  if(!saved){
+    goals++;
+    document.getElementById('scoreGoal').textContent=goals;
+    if(dot)dot.classList.add('goal');
+    const nf=document.getElementById('netFlash');
+    nf.classList.add('flash');
+    setTimeout(()=>nf.classList.remove('flash'),800);
+    showResult(true);
+  }else{
+    misses++;
+    document.getElementById('scoreMiss').textContent=misses;
+    if(dot)dot.classList.add('miss');
+    showResult(false);
+  }
+  document.getElementById('scoreRemain').textContent=TOTAL-shots;
+}
+
+function showResult(isGoal){
+  const ov=document.getElementById('resOverlay');
+  document.getElementById('resEmoji').textContent=isGoal?'⚽':'🧤';
+  const rt=document.getElementById('resText');
+  rt.textContent=isGoal?'GOL!':'TUTUDU!';
+  rt.className='res-text '+(isGoal?'gt':'mt');
+  const msgs=isGoal?goalMsgs:missMsgs;
+  document.getElementById('resSub').textContent=msgs[Math.floor(Math.random()*msgs.length)];
+  ov.classList.add('show');
+  setTimeout(()=>{
+    ov.classList.remove('show');
+    resetBall();
+    if(shots>=TOTAL)setTimeout(showFinal,420);
+    else{canShoot=true;document.getElementById('shootBanner').style.display='';}
+  },1500);
+}
+
+function resetBall(){
+  const ball=document.getElementById('ball');
+  ball.classList.remove('shooting');
+  ball.style.transition='none';
+  ball.style.transform='translateX(-50%)';
+  setTimeout(()=>{
+    const kp=document.getElementById('keeper');
+    kp.style.left='50%';kp.style.transform='translateX(-50%)';
+    document.getElementById('keeperSvg').style.transform='scaleX(1)';
+  },130);
+}
+
+function showFinal(){
+  document.getElementById('finScore').textContent=goals+' / '+TOTAL+' GOL';
+  const pct=goals/TOTAL;
+  const t=document.getElementById('finTrophy'),ti=document.getElementById('finTitle'),m=document.getElementById('finMsg');
+  if(pct===1){t.textContent='🏆';ti.textContent='MÜKEMMEL!';ti.style.color='#FFD700';m.textContent='Tüm penaltıları gol yaptın! Gerçek bir penaltı ustasısın!';}
+  else if(pct>=0.8){t.textContent='🥇';ti.textContent='HARİKA!';ti.style.color='#FFD700';m.textContent='Çok iyi! Bir dahaki sefere tümünü atabilirsin!';}
+  else if(pct>=0.6){t.textContent='⭐';ti.textContent='İYİ!';ti.style.color='#4FC3F7';m.textContent='Güzel oyun! Pratik yaptıkça daha iyiye gideceksin.';}
+  else if(pct>=0.4){t.textContent='💪';ti.textContent='DEVAM ET!';ti.style.color='#FF9800';m.textContent='Kaleci bugün biraz şanslıydı. Tekrar dene!';}
+  else{t.textContent='😅';ti.textContent='OLMADI!';ti.style.color='#FF5252';m.textContent='Bu sefer kaleci kazandı! Rövanş ver!';}
+  document.getElementById('finalOverlay').classList.add('show');
+  gameActive=false;
+  if(tg){try{tg.sendData(JSON.stringify({game:'penalti',goals,misses,total:TOTAL}));}catch(e){}}
+}
+
+function resetGame(){
+  goals=0;misses=0;shots=0;canShoot=true;gameActive=true;
+  document.getElementById('scoreGoal').textContent='0';
+  document.getElementById('scoreMiss').textContent='0';
+  document.getElementById('scoreRemain').textContent=TOTAL;
+  document.getElementById('finalOverlay').classList.remove('show');
+  document.getElementById('shootBanner').style.display='';
+  buildDots();resetBall();
+}
+
+function shareResult(){
+  const txt=`⚽ Pusulabet Penaltı: ${goals}/${TOTAL} gol attım! Sen de oyna → @pusulasocial`;
+  if(tg&&tg.openTelegramLink)tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/pusulabetgame_bot/penalti&text=${encodeURIComponent(txt)}`);
+  else if(navigator.share)navigator.share({text:txt});
+}
+
+function startGame(){document.getElementById('startScreen').style.display='none';gameActive=true;canShoot=true;}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+buildGrid();buildDots();
+</script>
+</body>
+</html>
