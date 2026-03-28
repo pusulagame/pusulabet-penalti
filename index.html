@@ -371,7 +371,7 @@ function showFinal(){
   const pct=goals/TOTAL;
   const t=document.getElementById('fTrophy'),ti=document.getElementById('fTitle'),m=document.getElementById('fMsg');
   document.getElementById('fScore').textContent=goals+'/'+TOTAL+' GOL';
-  if(pct===1){t.textContent='🏆';ti.textContent='MÜKEMMEL!';ti.style.color='#FFD700';m.textContent='Tüm golleri attın! Arda Güler'in ruhu sende!';}
+  if(pct===1){t.textContent='🏆';ti.textContent='MÜKEMMEL!';ti.style.color='#FFD700';m.textContent='Tüm golleri attın! Arda Güler ruhu sende!';}
   else if(pct>=.8){t.textContent='🥇';ti.textContent='HARİKA!';ti.style.color='#FFD700';m.textContent='Çok iyi skor! Bir dahaki sefere tümünü at!';}
   else if(pct>=.6){t.textContent='⭐';ti.textContent='İYİ!';ti.style.color='#4FC3F7';m.textContent='Güzel oyun! Biraz daha pratik yap!';}
   else if(pct>=.4){t.textContent='💪';ti.textContent='DEVAM ET!';ti.style.color='#FF9800';m.textContent='Kaleci bugün şanslıydı. Rövanş ver!';}
