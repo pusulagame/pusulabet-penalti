@@ -127,11 +127,9 @@ const K_SW=320, K_SH=853;
 // player.png: 1280x853, 4 frame → frame w=320, h=853
 const P_SW=320, P_SH=853;
 
-// BG'deki kale konumu (piksel, REF 1536x1024 için)
-// Analiz: sol direk x≈290, sağ x≈1247, üst y≈227, alt ≈530
-const GOAL = { x:290, y:105, w:957, h:400 };
-// Kaleci kale içinde: y merkezi %60
-// Oyuncu: sahada önde
+// BG kale - piksel analizi kesin: sol=289 sag=1248 ust=83 alt=443
+const GOAL = { x:289, y:83, w:959, h:360 };
+const PENALTY_SPOT = { x:771, y:714 }; // penalti noktasi
 
 const TOTAL=5;
 const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡","Aglari salladi! 🌊"];
@@ -160,11 +158,11 @@ let kp={
 
 function initKeeper(){
   const g=gr();
-  // Kaleci kale içinde ortalanmış, alt kısımda
-  kp.displayW = g.w * 0.28;
+  // Kaleci kale genisliginin %30'u kadar, kale alt çizgisinde
+  kp.displayW = g.w * 0.30;
   kp.displayH = kp.displayW * (K_SH/K_SW);
   kp.x = g.x + g.w/2;
-  kp.y = g.y + g.h * 0.82; // Kale alt çizgisine yakın
+  kp.y = g.y + g.h; // Kale alt çizgisi tam üstünde
   kp.frame=0; kp.phase='idle'; kp.t=0;
 }
 
@@ -212,11 +210,12 @@ function updateKeeper(dt){
 let pl={frame:0,x:0,y:0,displayW:0,displayH:0,phase:'idle',t:0};
 
 function initPlayer(){
-  pl.displayW = Math.min(W,H)*0.22;
+  // Arda Güler - gerçekçi büyüklük, penaltı noktası gerisinde
+  pl.displayW = Math.min(W,H)*0.32;
   pl.displayH = pl.displayW*(P_SH/P_SW);
-  // Ekranın sağ-alt önünde, topa yakın
-  pl.x = W*0.40;
-  pl.y = H*0.96;
+  // Penaltı noktasının hemen arkasında, yatay ortada
+  pl.x = sx(PENALTY_SPOT.x);
+  pl.y = sy(PENALTY_SPOT.y) + pl.displayH*0.12;
   pl.frame=0; pl.phase='idle'; pl.t=0;
 }
 
@@ -251,7 +250,8 @@ let bl={x:0,y:0,r:0,scale:1,rot:0,rotV:0,phase:'idle',t:0,sx:0,sy2:0,tx:0,ty:0,d
 function initBall(){
   bl.r=Math.min(W,H)*0.034;
   // Top penaltı noktasında
-  bl.x=W*0.40; bl.y=H*0.80;
+  bl.x=sx(PENALTY_SPOT.x);
+  bl.y=sy(PENALTY_SPOT.y);
   bl.scale=1;bl.rot=0;bl.rotV=0;bl.phase='idle';bl.t=0;
 }
 
