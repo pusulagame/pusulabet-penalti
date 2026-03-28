@@ -8,506 +8,1007 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@600;700&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
-:root{--gold:#FFD700;--orange:#FF6B00;--green:#00E676;--red:#FF1744;}
-body{background:#0a2a0a;font-family:'Rajdhani',sans-serif;overflow:hidden;height:100dvh;width:100vw;user-select:none;-webkit-user-select:none;touch-action:manipulation;}
+body{background:#000;overflow:hidden;height:100dvh;width:100vw;font-family:'Rajdhani',sans-serif;touch-action:manipulation;user-select:none;}
+#c{display:block;width:100vw;height:100dvh;cursor:crosshair;}
 
-#gc{position:relative;width:100vw;height:100dvh;overflow:hidden;}
+/* ── UI OVERLAY (canvas üstü) ── */
+#ui{position:fixed;inset:0;pointer-events:none;z-index:10;}
 
-#bgCanvas{position:absolute;inset:0;width:100%;height:100%;}
-
-#darkOverlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0.1) 0%,rgba(0,0,0,0.0) 45%,rgba(0,0,0,0.45) 100%);pointer-events:none;z-index:1;}
-
-/* ── KALE ZONE — görseldeki kaleyle hizalı ── */
-#goalZone{
-  position:absolute;
-  /* Görsel 1536x1024, kale yaklaşık: top=%7, left=%15, w=%70, h=%40 */
-  top:7%; left:15%; width:70%; height:41%;
-  z-index:10; cursor:crosshair;
-}
-.goal-grid{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  grid-template-rows:repeat(3,1fr);
-  width:100%;height:100%;gap:3px;
-}
-.goal-cell{
-  border:1px solid rgba(255,255,255,0.0);
-  border-radius:3px;
-  transition:background 0.12s,border-color 0.12s;
-}
-.goal-cell:hover,
-.goal-cell:active{
-  background:rgba(255,215,0,0.22);
-  border-color:rgba(255,215,0,0.7);
-  box-shadow:inset 0 0 20px rgba(255,215,0,0.15);
-}
-
-/* ── GOL FLASH ── */
-#netFlash{
-  position:absolute;top:7%;left:15%;width:70%;height:41%;
-  z-index:25;pointer-events:none;opacity:0;border-radius:3px;
-  background:radial-gradient(ellipse at center,rgba(0,230,118,0.65) 0%,transparent 70%);
-}
-#netFlash.flash{animation:netAnim 0.75s ease-out forwards;}
-@keyframes netAnim{0%{opacity:0;transform:scale(0.75)}35%{opacity:1;transform:scale(1.06)}100%{opacity:0;transform:scale(1.12)}}
-
-/* ── TOP ── */
-#ball{
-  position:absolute;
-  width:58px;height:58px;
-  bottom:30%;left:50%;
-  transform:translateX(-50%);
-  z-index:20;pointer-events:none;
-  filter:drop-shadow(0 0 16px rgba(180,255,150,0.9));
-  transition:none;
-}
-#ball.shooting{transition:all 0.55s cubic-bezier(0.25,0.46,0.45,0.94);}
-
-/* ── KALECİ — görüntüdeki mavi formayla eşleştirildi ── */
-#keeper{
-  position:absolute;
-  top:16%; left:50%;
-  transform:translateX(-50%);
-  width:9%; max-width:58px; min-width:38px;
-  z-index:15; pointer-events:none;
-  transition:left 0.27s cubic-bezier(0.25,0.46,0.45,0.94);
-  filter:drop-shadow(1px 3px 10px rgba(0,0,0,0.95));
-}
-#keeperSvg{transition:transform 0.2s;}
-
-/* ── HUD ── */
+/* HUD */
 #hud{
-  position:absolute;top:0;left:0;right:0;z-index:30;
+  position:absolute;top:0;left:0;right:0;
   display:flex;justify-content:space-between;align-items:flex-start;
   padding:14px 20px 0;
-  background:linear-gradient(to bottom,rgba(0,0,0,0.72) 0%,transparent 100%);
+  background:linear-gradient(to bottom,rgba(0,0,0,0.75),transparent);
+  pointer-events:none;
 }
-.hud-block{text-align:center;}
-.hud-label{font-family:'Bebas Neue',cursive;font-size:11px;color:rgba(255,255,255,0.48);letter-spacing:2px;display:block;}
-.hud-val{font-family:'Bebas Neue',cursive;font-size:38px;line-height:1;color:var(--gold);text-shadow:0 0 22px rgba(255,215,0,0.65);}
-.hud-val.g{color:var(--green);text-shadow:0 0 22px rgba(0,230,118,0.65);}
-.hud-val.r{color:var(--red);text-shadow:0 0 22px rgba(255,23,68,0.65);}
+.hb{text-align:center;}
+.hl{font-family:'Bebas Neue',cursive;font-size:11px;letter-spacing:2.5px;color:rgba(255,255,255,0.45);display:block;}
+.hv{font-family:'Bebas Neue',cursive;font-size:40px;line-height:1;color:#FFD700;text-shadow:0 0 20px rgba(255,215,0,0.7);}
+.hv.g{color:#00E676;text-shadow:0 0 20px rgba(0,230,118,0.7);}
+.hv.r{color:#FF1744;text-shadow:0 0 20px rgba(255,23,68,0.7);}
 
-/* ── ATIŞLAR ── */
-#attempts{
-  position:absolute;bottom:26%;left:50%;transform:translateX(-50%);
-  display:flex;gap:10px;z-index:30;
-}
-.dot{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,0.32);background:transparent;transition:all 0.3s;}
-.dot.goal{background:var(--green);border-color:var(--green);box-shadow:0 0 10px var(--green);}
-.dot.miss{background:var(--red);border-color:var(--red);box-shadow:0 0 10px var(--red);}
+/* Dots */
+#dots{position:absolute;bottom:27%;left:50%;transform:translateX(-50%);display:flex;gap:10px;}
+.dot{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);background:transparent;transition:all .35s;}
+.dot.goal{background:#00E676;border-color:#00E676;box-shadow:0 0 12px #00E676;}
+.dot.miss{background:#FF1744;border-color:#FF1744;box-shadow:0 0 12px #FF1744;}
 
-/* ── BANNER ── */
-#shootBanner{
+/* Banner */
+#banner{
   position:absolute;bottom:15%;left:50%;transform:translateX(-50%);
-  background:linear-gradient(135deg,rgba(255,107,0,0.96),rgba(210,20,0,0.96));
+  background:linear-gradient(135deg,rgba(255,107,0,.97),rgba(200,15,0,.97));
   color:#fff;font-family:'Bebas Neue',cursive;font-size:20px;letter-spacing:3px;
   padding:11px 32px;border-radius:50px;
-  border:1px solid rgba(255,255,255,0.22);
-  box-shadow:0 4px 24px rgba(255,107,0,0.5),inset 0 1px 0 rgba(255,255,255,0.18);
-  z-index:30;white-space:nowrap;
+  border:1px solid rgba(255,255,255,.2);
+  box-shadow:0 4px 24px rgba(255,107,0,.55),inset 0 1px 0 rgba(255,255,255,.18);
+  white-space:nowrap;pointer-events:none;
   animation:pulse 1.6s ease-in-out infinite;
 }
-@keyframes pulse{0%,100%{transform:translateX(-50%) scale(1);}50%{transform:translateX(-50%) scale(1.045);}}
+@keyframes pulse{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.045)}}
 
-/* ── SONUÇ ── */
-#resOverlay{
-  position:absolute;inset:0;z-index:50;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
-  opacity:0;pointer-events:none;transition:opacity 0.32s;
+/* Sonuç */
+#result{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:8px;
+  opacity:0;pointer-events:none;transition:opacity .3s;
 }
-#resOverlay.show{opacity:1;pointer-events:auto;}
-.res-bg{position:absolute;inset:0;background:rgba(0,0,0,0.52);backdrop-filter:blur(4px);}
-.res-emoji{font-size:76px;position:relative;z-index:1;animation:bIn 0.5s cubic-bezier(0.36,0.07,0.19,0.97);}
-@keyframes bIn{0%{transform:scale(0.15);opacity:0}55%{transform:scale(1.2)}100%{transform:scale(1);opacity:1}}
-.res-text{font-family:'Bebas Neue',cursive;font-size:60px;letter-spacing:5px;position:relative;z-index:1;text-shadow:0 4px 22px rgba(0,0,0,0.9);}
-.res-text.gt{color:var(--green);}
-.res-text.mt{color:var(--red);}
-.res-sub{font-size:17px;color:rgba(255,255,255,0.82);position:relative;z-index:1;letter-spacing:1px;}
+#result.show{opacity:1;}
+.rbg{position:absolute;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);}
+.remoji{font-size:80px;position:relative;z-index:1;animation:bIn .45s cubic-bezier(.36,.07,.19,.97);}
+@keyframes bIn{0%{transform:scale(.1);opacity:0}55%{transform:scale(1.25)}100%{transform:scale(1);opacity:1}}
+.rtxt{font-family:'Bebas Neue',cursive;font-size:64px;letter-spacing:5px;position:relative;z-index:1;text-shadow:0 4px 24px rgba(0,0,0,.9);}
+.rtxt.gt{color:#00E676;}.rtxt.mt{color:#FF1744;}
+.rsub{font-size:18px;color:rgba(255,255,255,.82);position:relative;z-index:1;letter-spacing:1px;}
 
-/* ── FİNAL ── */
-#finalOverlay{position:absolute;inset:0;z-index:60;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
-#finalOverlay.show{display:flex;}
-.fin-bg{position:absolute;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(10px);}
-.fin-card{position:relative;z-index:1;background:linear-gradient(145deg,rgba(255,107,0,0.1),rgba(0,0,0,0.65));border:1px solid rgba(255,215,0,0.28);border-radius:22px;padding:32px 38px;text-align:center;max-width:320px;width:88%;box-shadow:0 20px 64px rgba(0,0,0,0.65),inset 0 1px 0 rgba(255,255,255,0.07);}
-.fin-trophy{font-size:64px;margin-bottom:6px;}
-.fin-title{font-family:'Bebas Neue',cursive;font-size:46px;letter-spacing:3px;margin-bottom:4px;}
-.fin-score{font-family:'Bebas Neue',cursive;font-size:30px;color:var(--gold);margin-bottom:10px;}
-.fin-msg{font-size:15px;color:rgba(255,255,255,0.7);line-height:1.5;margin-bottom:20px;}
-.btn-p{background:linear-gradient(135deg,var(--orange),#e02000);color:#fff;font-family:'Bebas Neue',cursive;font-size:21px;letter-spacing:2px;padding:14px 36px;border:none;border-radius:50px;cursor:pointer;width:100%;box-shadow:0 6px 20px rgba(255,107,0,0.42);transition:transform 0.14s;}
-.btn-p:active{transform:scale(0.97);}
-.btn-s{background:transparent;color:rgba(255,255,255,0.52);font-size:14px;border:1px solid rgba(255,255,255,0.16);border-radius:50px;padding:10px 28px;cursor:pointer;width:100%;margin-top:8px;transition:all 0.18s;}
-.btn-s:hover{color:#fff;border-color:rgba(255,255,255,0.36);}
+/* Final */
+#final{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;}
+#final.show{display:flex;}
+.fbg{position:absolute;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);}
+.fcard{
+  position:relative;z-index:1;
+  background:linear-gradient(145deg,rgba(255,107,0,.1),rgba(0,0,0,.7));
+  border:1px solid rgba(255,215,0,.28);border-radius:24px;
+  padding:32px 40px;text-align:center;max-width:320px;width:88%;
+  box-shadow:0 24px 72px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.07);
+}
+.ftrophy{font-size:66px;margin-bottom:6px;}
+.ftitle{font-family:'Bebas Neue',cursive;font-size:48px;letter-spacing:3px;margin-bottom:4px;}
+.fscore{font-family:'Bebas Neue',cursive;font-size:32px;color:#FFD700;margin-bottom:10px;}
+.fmsg{font-size:15px;color:rgba(255,255,255,.7);line-height:1.55;margin-bottom:20px;}
+.btnP{
+  background:linear-gradient(135deg,#FF6B00,#e02000);color:#fff;
+  font-family:'Bebas Neue',cursive;font-size:22px;letter-spacing:2px;
+  padding:14px 36px;border:none;border-radius:50px;cursor:pointer;width:100%;
+  box-shadow:0 6px 22px rgba(255,107,0,.42);transition:transform .14s;pointer-events:all;
+}
+.btnP:active{transform:scale(.97);}
+.btnS{
+  background:transparent;color:rgba(255,255,255,.5);font-size:14px;
+  border:1px solid rgba(255,255,255,.15);border-radius:50px;
+  padding:10px 28px;cursor:pointer;width:100%;margin-top:8px;
+  transition:all .18s;pointer-events:all;
+}
+.btnS:hover{color:#fff;border-color:rgba(255,255,255,.35);}
 
-/* ── BAŞLANGIÇ ── */
-#startScreen{position:absolute;inset:0;z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:46px;}
-.st-bg{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,0.9) 0%,rgba(0,0,0,0.22) 55%,transparent 100%);}
-.st-card{position:relative;z-index:1;text-align:center;width:90%;max-width:340px;}
-.st-brand{font-family:'Bebas Neue',cursive;font-size:12px;letter-spacing:6px;color:var(--orange);margin-bottom:4px;}
-.st-title{font-family:'Bebas Neue',cursive;font-size:62px;color:#fff;line-height:0.9;letter-spacing:2px;text-shadow:0 4px 32px rgba(0,0,0,0.9);margin-bottom:10px;}
-.st-title span{color:var(--gold);}
-.st-desc{font-size:15px;color:rgba(255,255,255,0.68);margin-bottom:22px;line-height:1.5;}
-.st-rules{display:flex;justify-content:center;gap:26px;margin-bottom:24px;}
-.ri{text-align:center;}
-.ri-icon{font-size:24px;}
-.ri-text{font-size:12px;color:rgba(255,255,255,0.5);display:block;margin-top:3px;}
+/* Start */
+#start{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:48px;}
+.sbg{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.92) 0%,rgba(0,0,0,.2) 55%,transparent 100%);}
+.scard{position:relative;z-index:1;text-align:center;width:90%;max-width:340px;}
+.sbrand{font-family:'Bebas Neue',cursive;font-size:12px;letter-spacing:6px;color:#FF6B00;margin-bottom:4px;}
+.stitle{font-family:'Bebas Neue',cursive;font-size:64px;color:#fff;line-height:.9;letter-spacing:2px;text-shadow:0 4px 32px rgba(0,0,0,.9);margin-bottom:10px;}
+.stitle span{color:#FFD700;}
+.sdesc{font-size:15px;color:rgba(255,255,255,.65);margin-bottom:22px;line-height:1.5;}
+.srules{display:flex;justify-content:center;gap:28px;margin-bottom:24px;}
+.ri{text-align:center;}.riicon{font-size:26px;}.ritext{font-size:12px;color:rgba(255,255,255,.48);display:block;margin-top:3px;}
 </style>
 </head>
 <body>
-<div id="gc">
 
-  <canvas id="bgCanvas"></canvas>
-  <div id="darkOverlay"></div>
+<canvas id="c"></canvas>
 
-  <div id="goalZone"><div class="goal-grid" id="goalGrid"></div></div>
-  <div id="netFlash"></div>
-
-  <!-- Top — gerçek futbol topu -->
-  <div id="ball">
-    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <radialGradient id="ballGrad" cx="38%" cy="32%" r="62%">
-          <stop offset="0%" stop-color="#fff"/>
-          <stop offset="100%" stop-color="#c8c8c8"/>
-        </radialGradient>
-        <radialGradient id="shine" cx="35%" cy="28%" r="30%">
-          <stop offset="0%" stop-color="rgba(255,255,255,0.85)"/>
-          <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
-        </radialGradient>
-      </defs>
-      <circle cx="50" cy="50" r="48" fill="url(#ballGrad)" stroke="#aaa" stroke-width="1"/>
-      <!-- Ana siyah pentagon -->
-      <path d="M50 10 L65 30 L88 30 L76 50 L83 72 L50 60 L17 72 L24 50 L12 30 L35 30 Z" fill="#111" opacity="0.85"/>
-      <!-- Yan pentagon ipuçları -->
-      <path d="M50 10 L35 30 L50 22 L65 30 Z" fill="#222" opacity="0.4"/>
-      <path d="M50 60 L17 72 L22 60 Z" fill="#222" opacity="0.3"/>
-      <path d="M50 60 L83 72 L78 60 Z" fill="#222" opacity="0.3"/>
-      <!-- Parlaklık -->
-      <circle cx="50" cy="50" r="48" fill="url(#shine)"/>
-    </svg>
-  </div>
-
-  <!-- KALECİ — görseldeki koyu mavi forma, siyah şort, eldiven, uzanma pozu -->
-  <div id="keeper">
-    <svg id="keeperSvg" viewBox="0 0 90 180" xmlns="http://www.w3.org/2000/svg">
-      <!-- Saç (koyu kahve) -->
-      <ellipse cx="45" cy="18" rx="17" ry="11" fill="#1a0e06"/>
-      <!-- Kafa -->
-      <ellipse cx="45" cy="28" rx="16" ry="19" fill="#FDBCB4"/>
-      <!-- Yüz detayları -->
-      <ellipse cx="38" cy="25" rx="2.5" ry="3" fill="#2a1a0a"/>
-      <ellipse cx="52" cy="25" rx="2.5" ry="3" fill="#2a1a0a"/>
-      <!-- Kaş sol -->
-      <path d="M35 21 Q38 19 41 21" fill="none" stroke="#2a1a0a" stroke-width="1.5"/>
-      <!-- Kaş sağ -->
-      <path d="M49 21 Q52 19 55 21" fill="none" stroke="#2a1a0a" stroke-width="1.5"/>
-      <!-- Ağız -->
-      <path d="M40 35 Q45 39 50 35" fill="none" stroke="#c0705a" stroke-width="1.8" stroke-linecap="round"/>
-      <!-- Boyun -->
-      <rect x="37" y="45" width="16" height="10" rx="3" fill="#FDBCB4"/>
-      <!-- FORMA — koyu lacivert/mavi, görseldeki kaleci rengi -->
-      <!-- Gövde -->
-      <path d="M22 56 Q14 64 12 92 L18 94 Q21 74 28 70 L28 108 L62 108 L62 70 Q69 74 72 94 L78 92 Q76 64 68 56 Q58 48 45 48 Q32 48 22 56Z" fill="#0D1B6E"/>
-      <!-- Forma çizgisi -->
-      <line x1="45" y1="48" x2="45" y2="108" stroke="#2535AA" stroke-width="2" opacity="0.5"/>
-      <!-- Yaka -->
-      <path d="M36 48 Q45 55 54 48" fill="none" stroke="#3D52D5" stroke-width="2.5"/>
-      <!-- Kol SOL — kalecinin dışarı uzandığı poz -->
-      <path d="M22 60 Q6 76 2 96" stroke="#0D1B6E" stroke-width="13" stroke-linecap="round" fill="none"/>
-      <!-- Eldiven sol — beyaz büyük -->
-      <ellipse cx="2" cy="99" rx="9" ry="7" fill="#F0F0F0"/>
-      <ellipse cx="2" cy="99" rx="9" ry="7" fill="none" stroke="#ccc" stroke-width="1"/>
-      <!-- Parmak çizgileri sol -->
-      <line x1="-3" y1="94" x2="-4" y2="103" stroke="#bbb" stroke-width="1"/>
-      <line x1="2" y1="92" x2="2" y2="101" stroke="#bbb" stroke-width="1"/>
-      <line x1="7" y1="93" x2="8" y2="102" stroke="#bbb" stroke-width="1"/>
-      <!-- Kol SAĞ -->
-      <path d="M68 60 Q84 76 88 96" stroke="#0D1B6E" stroke-width="13" stroke-linecap="round" fill="none"/>
-      <!-- Eldiven sağ -->
-      <ellipse cx="88" cy="99" rx="9" ry="7" fill="#F0F0F0"/>
-      <ellipse cx="88" cy="99" rx="9" ry="7" fill="none" stroke="#ccc" stroke-width="1"/>
-      <line x1="83" y1="94" x2="82" y2="103" stroke="#bbb" stroke-width="1"/>
-      <line x1="88" y1="92" x2="88" y2="101" stroke="#bbb" stroke-width="1"/>
-      <line x1="93" y1="93" x2="94" y2="102" stroke="#bbb" stroke-width="1"/>
-      <!-- ŞORT siyah -->
-      <path d="M28 108 L25 140 L43 140 L45 122 L47 140 L65 140 L62 108 Z" fill="#111"/>
-      <!-- Şort bant -->
-      <rect x="28" y="108" width="34" height="5" fill="#222" opacity="0.6"/>
-      <!-- ÇORAP sol — lacivert beyaz şeritli -->
-      <rect x="25" y="140" width="15" height="28" rx="4" fill="#0D1B6E"/>
-      <rect x="25" y="140" width="15" height="6" rx="2" fill="white" opacity="0.7"/>
-      <rect x="25" y="148" width="15" height="3" fill="white" opacity="0.4"/>
-      <!-- ÇORAP sağ -->
-      <rect x="50" y="140" width="15" height="28" rx="4" fill="#0D1B6E"/>
-      <rect x="50" y="140" width="15" height="6" rx="2" fill="white" opacity="0.7"/>
-      <rect x="50" y="148" width="15" height="3" fill="white" opacity="0.4"/>
-      <!-- Ayakkabı sol -->
-      <ellipse cx="32" cy="170" rx="11" ry="6" fill="#1a1a1a"/>
-      <ellipse cx="32" cy="168" rx="9" ry="4" fill="#2a2a2a"/>
-      <!-- Ayakkabı sağ -->
-      <ellipse cx="58" cy="170" rx="11" ry="6" fill="#1a1a1a"/>
-      <ellipse cx="58" cy="168" rx="9" ry="4" fill="#2a2a2a"/>
-    </svg>
-  </div>
-
-  <!-- HUD -->
+<div id="ui">
   <div id="hud">
-    <div class="hud-block"><span class="hud-label">GOL</span><div class="hud-val g" id="scoreGoal">0</div></div>
-    <div class="hud-block"><span class="hud-label">KALAN</span><div class="hud-val" id="scoreRemain">5</div></div>
-    <div class="hud-block"><span class="hud-label">KAÇTI</span><div class="hud-val r" id="scoreMiss">0</div></div>
+    <div class="hb"><span class="hl">GOL</span><div class="hv g" id="sGoal">0</div></div>
+    <div class="hb"><span class="hl">KALAN</span><div class="hv" id="sRemain">5</div></div>
+    <div class="hb"><span class="hl">KAÇTI</span><div class="hv r" id="sMiss">0</div></div>
   </div>
 
-  <div id="attempts"></div>
-  <div id="shootBanner">⚽ HEDEF SEÇ VE VURGULA!</div>
+  <div id="dots"></div>
+  <div id="banner">⚽ KALEYE DOKUN VE VURGULA!</div>
 
-  <!-- Kısa sonuç -->
-  <div id="resOverlay">
-    <div class="res-bg"></div>
-    <div class="res-emoji" id="resEmoji">⚽</div>
-    <div class="res-text" id="resText">GOL!</div>
-    <div class="res-sub" id="resSub"></div>
+  <div id="result">
+    <div class="rbg"></div>
+    <div class="remoji" id="rEmoji">⚽</div>
+    <div class="rtxt" id="rTxt">GOL!</div>
+    <div class="rsub" id="rSub"></div>
   </div>
 
-  <!-- Final -->
-  <div id="finalOverlay">
-    <div class="fin-bg"></div>
-    <div class="fin-card">
-      <div class="fin-trophy" id="finTrophy">🏆</div>
-      <div class="fin-title" id="finTitle">TEBRİKLER!</div>
-      <div class="fin-score" id="finScore">5 / 5 GOL</div>
-      <div class="fin-msg" id="finMsg">Mükemmel performans!</div>
-      <button class="btn-p" onclick="resetGame()">🔄 TEKRAR OYNA</button>
-      <button class="btn-s" onclick="shareResult()">📤 Skoru Paylaş</button>
+  <div id="final">
+    <div class="fbg"></div>
+    <div class="fcard">
+      <div class="ftrophy" id="fTrophy">🏆</div>
+      <div class="ftitle" id="fTitle">TEBRİKLER!</div>
+      <div class="fscore" id="fScore">5/5 GOL</div>
+      <div class="fmsg" id="fMsg">Mükemmel!</div>
+      <button class="btnP" onclick="resetGame()">🔄 TEKRAR OYNA</button>
+      <button class="btnS" onclick="shareResult()">📤 Skoru Paylaş</button>
     </div>
   </div>
 
-  <!-- Başlangıç -->
-  <div id="startScreen">
-    <div class="st-bg"></div>
-    <div class="st-card">
-      <div class="st-brand">PUSULABET</div>
-      <div class="st-title">PENALTI<br><span>ŞUTLARI</span></div>
-      <div class="st-desc">Arda Güler gibi kaleciyi geç!<br>9 köşe, 5 şut, sonsuz heyecan.</div>
-      <div class="st-rules">
-        <div class="ri"><div class="ri-icon">⚽</div><span class="ri-text">5 Atış</span></div>
-        <div class="ri"><div class="ri-icon">🥅</div><span class="ri-text">9 Bölge</span></div>
-        <div class="ri"><div class="ri-icon">🤖</div><span class="ri-text">Akıllı Kaleci</span></div>
+  <div id="start">
+    <div class="sbg"></div>
+    <div class="scard">
+      <div class="sbrand">PUSULABET</div>
+      <div class="stitle">PENALTI<br><span>ŞUTLARI</span></div>
+      <div class="sdesc">Kaleyi 9 bölgeye böl, kalecini geç!<br>Her köşe farklı zorluk.</div>
+      <div class="srules">
+        <div class="ri"><div class="riicon">⚽</div><span class="ritext">5 Atış</span></div>
+        <div class="ri"><div class="riicon">🥅</div><span class="ritext">9 Köşe</span></div>
+        <div class="ri"><div class="riicon">✨</div><span class="ritext">Efektler</span></div>
       </div>
-      <button class="btn-p" onclick="startGame()" style="font-size:25px;padding:16px;">⚽ OYUNU BAŞLAT</button>
+      <button class="btnP" onclick="startGame()" style="font-size:26px;padding:16px;pointer-events:all;">⚽ BAŞLAT</button>
     </div>
   </div>
-
-</div><!-- /gc -->
+</div>
 
 <script>
 // ── Telegram ──
 let tg=null;
-try{tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();tg.setHeaderColor('#000000');}}catch(e){}
+try{tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();tg.setHeaderColor('#000');}}catch(e){}
 
-// ── Arka planı Canvas'a çiz (cover mantığı) ──
-(function(){
-  const canvas=document.getElementById('bgCanvas');
-  const ctx=canvas.getContext('2d');
-  const img=new Image();
+// ── Canvas Setup ──
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+let W, H;
 
-  function draw(){
-    canvas.width=window.innerWidth;
-    canvas.height=window.innerHeight;
-    const iw=img.naturalWidth||1536,ih=img.naturalHeight||1024;
-    const cw=canvas.width,ch=canvas.height;
-    const s=Math.max(cw/iw,ch/ih);
-    const dw=iw*s,dh=ih*s;
-    ctx.drawImage(img,(cw-dw)/2,(ch-dh)/2,dw,dh);
+function resize(){
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Görsel Yükle ──
+const bgImg = new Image();
+bgImg.src = 'bg.png';
+
+// ── Oyun Sabitleri ──
+const TOTAL = 5;
+
+// Kale bölgesi (görsel oranlarına göre)
+// bg.png 1536x1024 → kale: sol %14, üst %6, genişlik %72, yükseklik %42
+function goalRect(){
+  return {
+    x: W * 0.14,
+    y: H * 0.055,
+    w: W * 0.72,
+    h: H * 0.42
+  };
+}
+
+// ── Oyun Durumu ──
+let goals=0, misses=0, shots=0;
+let gameActive=false, canShoot=true;
+let phase='start'; // start | idle | shooting | result | final
+
+// ── Animasyon Nesneleri ──
+let ball    = { x:0, y:0, r:0, vx:0, vy:0, scale:1, active:false };
+let keeper  = { x:0, y:0, w:0, h:0, tx:0, phase:'idle', t:0 };
+let netParts= []; // ağ parçacıkları
+let confetti= [];
+let particles=[];
+let shotTarget = null;
+
+// ── Sabitler ──
+const goalMsgs = ["Net köşe! 🔥","Tam isabet! ✨","Harika şut! 💥","Üst köşe! 🎯","Geçilmez! ⚡","Ağları sarstı! 🌊"];
+const missMsgs = ["Kaleci tuttu! 🧤","Az kaldı! 😅","Direğe çarptı!","Kaçtı! 😬","Kaleci sezdi! 👀","Kurtarış! 🙌"];
+
+// ── Konfeti Renkleri ──
+const CONFETTI_COLORS = ['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'];
+
+// ── Init Nesneleri ──
+function initBall(){
+  ball = {
+    x: W * 0.5,
+    y: H * 0.74,
+    r: Math.min(W, H) * 0.038,
+    vx:0, vy:0,
+    scale:1,
+    rot:0, rotV:0,
+    active:false,
+    phase:'idle', // idle | flying | done
+    t:0,
+    startX:0, startY:0,
+    targetX:0, targetY:0,
+    duration:0,
+    arcHeight:0,
+    saved:false
+  };
+}
+
+function initKeeper(){
+  const gr = goalRect();
+  keeper = {
+    x: gr.x + gr.w/2,
+    y: gr.y + gr.h*0.12,
+    w: gr.w * 0.14,
+    h: gr.h * 0.75,
+    tx: gr.x + gr.w/2,
+    phase:'idle', // idle | diving | back
+    t:0,
+    dt:0,
+    dir:0, // -1 sol, 0 orta, 1 sağ
+    startX:0,
+    saved:false,
+    diveAngle:0
+  };
+}
+
+// ── Kaleci Çiz ──
+function drawKeeper(){
+  ctx.save();
+  const kx = keeper.x;
+  const ky = keeper.y;
+  const kw = keeper.w;
+  const kh = keeper.h;
+
+  // Dalış animasyonu
+  let angle = 0;
+  let scaleX = 1;
+  if(keeper.phase === 'diving'){
+    const p = Math.min(keeper.dt / 0.4, 1);
+    const ease = p < 0.5 ? 2*p*p : -1+(4-2*p)*p;
+    angle = keeper.dir * ease * 0.7; // max ~40 derece
+    scaleX = keeper.dir < 0 ? -1 : 1;
   }
 
-  img.onload=function(){draw();window.addEventListener('resize',draw);};
+  ctx.translate(kx, ky);
+  ctx.rotate(angle);
 
-  img.onerror=function(){
-    // Fallback: güzel saha gradyanı
-    canvas.width=window.innerWidth;canvas.height=window.innerHeight;
-    const gr=ctx.createLinearGradient(0,0,0,canvas.height);
-    gr.addColorStop(0,'#0d3b0d');gr.addColorStop(0.5,'#1a5c1a');gr.addColorStop(1,'#0a2a0a');
-    ctx.fillStyle=gr;ctx.fillRect(0,0,canvas.width,canvas.height);
-    // Saha çizgileri
-    ctx.strokeStyle='rgba(255,255,255,0.12)';ctx.lineWidth=2;
-    const w=canvas.width,h=canvas.height;
-    ctx.strokeRect(w*.14,h*.06,w*.72,h*.42);  // kale dış
-    ctx.strokeRect(w*.28,h*.06,w*.44,h*.22);  // küçük alan
-    // kale ağı dikey çizgiler
-    for(let i=1;i<4;i++)ctx.strokeRect(w*.14+w*.72/3*i,h*.06,0,h*.42);
-    for(let j=1;j<4;j++)ctx.strokeRect(w*.14,h*.06+h*.42/3*j,w*.72,0);
-    window.addEventListener('resize',function(){img.onerror();});
-  };
+  // Gölge
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(0, kh*0.52, kw*0.55, kh*0.06, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
 
-  img.src='bg.png';
-})();
+  const hw = kw/2;
 
-// ── Oyun ──
-const TOTAL=5;
-let goals=0,misses=0,shots=0,gameActive=false,canShoot=true;
+  // ── AYAKLAR ──
+  // Sol bacak
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath();
+  ctx.roundRect(-hw*0.55, kh*0.32, hw*0.48, kh*0.22, 6);
+  ctx.fill();
+  // Sağ bacak
+  ctx.beginPath();
+  ctx.roundRect(hw*0.07, kh*0.32, hw*0.48, kh*0.22, 6);
+  ctx.fill();
 
-const goalMsgs=["Net köşe! 🔥","Tam isabet! ✨","Harika şut! 💥","Üst köşe! 🎯","Geçilmez! ⚡","Ağları sarstı! 🌊"];
-const missMsgs=["Kaleci tuttu! 🧤","Az kaldı! 😅","Direğe çarptı!","Kaçtı! 😬","Kaleci sezdi! 👀","Kurtarış! 🙌"];
+  // Çorap sol (lacivert)
+  ctx.fillStyle = '#0D47A1';
+  ctx.beginPath();
+  ctx.roundRect(-hw*0.52, kh*0.38, hw*0.43, kh*0.14, 4);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.beginPath();
+  ctx.roundRect(-hw*0.52, kh*0.38, hw*0.43, kh*0.04, 2);
+  ctx.fill();
 
-function buildGrid(){
-  const g=document.getElementById('goalGrid');g.innerHTML='';
-  for(let r=0;r<3;r++)for(let c=0;c<3;c++){
-    const cell=document.createElement('div');
-    cell.className='goal-cell';cell.dataset.r=r;cell.dataset.c=c;
-    cell.addEventListener('click',()=>shoot(r,c));
-    cell.addEventListener('touchend',e=>{e.preventDefault();shoot(r,c);});
-    g.appendChild(cell);
+  // Çorap sağ
+  ctx.fillStyle = '#0D47A1';
+  ctx.beginPath();
+  ctx.roundRect(hw*0.09, kh*0.38, hw*0.43, kh*0.14, 4);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.beginPath();
+  ctx.roundRect(hw*0.09, kh*0.38, hw*0.43, kh*0.04, 2);
+  ctx.fill();
+
+  // Ayakkabı sol
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.ellipse(-hw*0.3, kh*0.51, hw*0.38, kh*0.055, 0, 0, Math.PI*2);
+  ctx.fill();
+  // Ayakkabı sağ
+  ctx.beginPath();
+  ctx.ellipse(hw*0.3, kh*0.51, hw*0.38, kh*0.055, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // ── ŞORT (siyah) ──
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.roundRect(-hw*0.65, kh*0.2, kw*1.3, kh*0.16, 4);
+  ctx.fill();
+
+  // ── FORMA (koyu lacivert) ──
+  const formGrad = ctx.createLinearGradient(-hw*0.8, kh*0, hw*0.8, kh*0.35);
+  formGrad.addColorStop(0, '#1565C0');
+  formGrad.addColorStop(0.5, '#0D47A1');
+  formGrad.addColorStop(1, '#0a3080');
+  ctx.fillStyle = formGrad;
+  ctx.beginPath();
+  ctx.moveTo(-hw*0.7, kh*0.36);
+  ctx.lineTo(-hw*0.85, kh*0.02);
+  ctx.quadraticCurveTo(-hw*0.85, -kh*0.05, -hw*0.3, -kh*0.08);
+  ctx.lineTo(0, -kh*0.04);
+  ctx.lineTo(hw*0.3, -kh*0.08);
+  ctx.quadraticCurveTo(hw*0.85, -kh*0.05, hw*0.85, kh*0.02);
+  ctx.lineTo(hw*0.7, kh*0.36);
+  ctx.closePath();
+  ctx.fill();
+
+  // Forma çizgisi
+  ctx.strokeStyle = 'rgba(100,140,255,0.4)';
+  ctx.lineWidth = kw*0.04;
+  ctx.beginPath();
+  ctx.moveTo(0, -kh*0.04);
+  ctx.lineTo(0, kh*0.36);
+  ctx.stroke();
+
+  // ── KOLLAR ──
+  // Sol kol
+  ctx.strokeStyle = '#1565C0';
+  ctx.lineWidth = kw*0.38;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-hw*0.75, kh*0.04);
+  ctx.quadraticCurveTo(-hw*1.5, kh*0.22, -hw*1.6, kh*0.4);
+  ctx.stroke();
+
+  // Sağ kol
+  ctx.beginPath();
+  ctx.moveTo(hw*0.75, kh*0.04);
+  ctx.quadraticCurveTo(hw*1.5, kh*0.22, hw*1.6, kh*0.4);
+  ctx.stroke();
+
+  // ── ELDİVENLER ──
+  // Sol eldiven
+  const glovGrad1 = ctx.createRadialGradient(-hw*1.62, kh*0.38, 0, -hw*1.62, kh*0.38, kw*0.35);
+  glovGrad1.addColorStop(0, '#F5F5F5');
+  glovGrad1.addColorStop(1, '#BDBDBD');
+  ctx.fillStyle = glovGrad1;
+  ctx.beginPath();
+  ctx.ellipse(-hw*1.62, kh*0.42, kw*0.35, kw*0.28, -0.3, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = '#9E9E9E';
+  ctx.lineWidth = kw*0.04;
+  ctx.stroke();
+  // Parmak çizgileri
+  ctx.strokeStyle = 'rgba(150,150,150,0.6)';
+  ctx.lineWidth = kw*0.03;
+  for(let i=-1;i<=1;i++){
+    ctx.beginPath();
+    ctx.moveTo(-hw*1.62+i*kw*0.09, kh*0.35);
+    ctx.lineTo(-hw*1.62+i*kw*0.09, kh*0.48);
+    ctx.stroke();
+  }
+
+  // Sağ eldiven
+  const glovGrad2 = ctx.createRadialGradient(hw*1.62, kh*0.38, 0, hw*1.62, kh*0.38, kw*0.35);
+  glovGrad2.addColorStop(0, '#F5F5F5');
+  glovGrad2.addColorStop(1, '#BDBDBD');
+  ctx.fillStyle = glovGrad2;
+  ctx.beginPath();
+  ctx.ellipse(hw*1.62, kh*0.42, kw*0.35, kw*0.28, 0.3, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = '#9E9E9E';
+  ctx.lineWidth = kw*0.04;
+  ctx.stroke();
+  for(let i=-1;i<=1;i++){
+    ctx.strokeStyle = 'rgba(150,150,150,0.6)';
+    ctx.lineWidth = kw*0.03;
+    ctx.beginPath();
+    ctx.moveTo(hw*1.62+i*kw*0.09, kh*0.35);
+    ctx.lineTo(hw*1.62+i*kw*0.09, kh*0.48);
+    ctx.stroke();
+  }
+
+  // ── BOYUN ──
+  ctx.fillStyle = '#FDBCB4';
+  ctx.beginPath();
+  ctx.roundRect(-kw*0.18, -kh*0.16, kw*0.36, kh*0.14, 4);
+  ctx.fill();
+
+  // ── BAŞ ──
+  // Saç
+  ctx.fillStyle = '#1a0e06';
+  ctx.beginPath();
+  ctx.ellipse(0, -kh*0.28, kw*0.44, kh*0.14, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Yüz
+  const faceGrad = ctx.createRadialGradient(-kw*0.08, -kh*0.3, 0, 0, -kh*0.26, kw*0.42);
+  faceGrad.addColorStop(0, '#FDBCB4');
+  faceGrad.addColorStop(1, '#e8a090');
+  ctx.fillStyle = faceGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, -kh*0.26, kw*0.4, kh*0.165, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Gözler
+  ctx.fillStyle = '#1a0e06';
+  ctx.beginPath();
+  ctx.ellipse(-kw*0.14, -kh*0.28, kw*0.065, kh*0.05, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(kw*0.14, -kh*0.28, kw*0.065, kh*0.05, 0, 0, Math.PI*2);
+  ctx.fill();
+  // Göz parıltısı
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.beginPath();
+  ctx.ellipse(-kw*0.12, -kh*0.295, kw*0.022, kh*0.018, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(kw*0.16, -kh*0.295, kw*0.022, kh*0.018, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Kaşlar
+  ctx.strokeStyle = '#1a0e06';
+  ctx.lineWidth = kw*0.04;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-kw*0.2, -kh*0.335);
+  ctx.quadraticCurveTo(-kw*0.14, -kh*0.35, -kw*0.07, -kh*0.332);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(kw*0.07, -kh*0.332);
+  ctx.quadraticCurveTo(kw*0.14, -kh*0.35, kw*0.2, -kh*0.335);
+  ctx.stroke();
+
+  // Ağız
+  ctx.strokeStyle = '#b05040';
+  ctx.lineWidth = kw*0.035;
+  ctx.beginPath();
+  ctx.moveTo(-kw*0.12, -kh*0.2);
+  ctx.quadraticCurveTo(0, -kh*0.17, kw*0.12, -kh*0.2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── Top Çiz ──
+function drawBall(){
+  const bx = ball.x, by = ball.y;
+  const r  = ball.r * ball.scale;
+
+  ctx.save();
+  ctx.translate(bx, by);
+  ctx.rotate(ball.rot);
+
+  // Gölge
+  ctx.save();
+  ctx.globalAlpha = 0.3 * ball.scale;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(0, r*1.1, r*0.9, r*0.2, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // Top glow
+  if(ball.phase === 'idle'){
+    const glowGrad = ctx.createRadialGradient(0, 0, r*0.8, 0, 0, r*1.8);
+    glowGrad.addColorStop(0, 'rgba(120,255,120,0.3)');
+    glowGrad.addColorStop(1, 'rgba(0,230,118,0)');
+    ctx.fillStyle = glowGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, r*1.8, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Top zemin halkası (idle)
+  if(ball.phase === 'idle'){
+    ctx.save();
+    ctx.globalAlpha = 0.5 + 0.3*Math.sin(Date.now()*0.004);
+    const ringGrad = ctx.createRadialGradient(0, r*0.1, 0, 0, r*0.1, r*1.4);
+    ringGrad.addColorStop(0, 'rgba(0,255,100,0)');
+    ringGrad.addColorStop(0.7, 'rgba(0,255,100,0.5)');
+    ringGrad.addColorStop(1, 'rgba(0,255,100,0)');
+    ctx.fillStyle = ringGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, r*0.1, r*1.35, r*0.32, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Top body
+  const ballGrad = ctx.createRadialGradient(-r*0.3, -r*0.3, 0, 0, 0, r);
+  ballGrad.addColorStop(0, '#fff');
+  ballGrad.addColorStop(0.6, '#ddd');
+  ballGrad.addColorStop(1, '#bbb');
+  ctx.fillStyle = ballGrad;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI*2);
+  ctx.fill();
+
+  // Pentagon deseni
+  ctx.fillStyle = 'rgba(10,10,10,0.87)';
+  ctx.beginPath();
+  const pts = [];
+  for(let i=0;i<5;i++){
+    const a = (i*72 - 90) * Math.PI/180;
+    pts.push([Math.cos(a)*r*0.52, Math.sin(a)*r*0.52]);
+  }
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for(let i=1;i<5;i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
+  ctx.fill();
+
+  // Yan pentagonlar (küçük)
+  for(let s=0;s<5;s++){
+    const ca = (s*72 - 90)*Math.PI/180;
+    const cx2 = Math.cos(ca)*r*0.78;
+    const cy2 = Math.sin(ca)*r*0.78;
+    ctx.save();
+    ctx.translate(cx2, cy2);
+    ctx.rotate(ca + Math.PI);
+    ctx.fillStyle = 'rgba(10,10,10,0.4)';
+    ctx.beginPath();
+    for(let i=0;i<5;i++){
+      const a2=(i*72-90)*Math.PI/180;
+      const px=Math.cos(a2)*r*0.22,py=Math.sin(a2)*r*0.22;
+      if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Parlaklık
+  const shine = ctx.createRadialGradient(-r*0.32, -r*0.32, 0, -r*0.32, -r*0.32, r*0.55);
+  shine.addColorStop(0, 'rgba(255,255,255,0.75)');
+  shine.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = shine;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ── Ağ Parçacıkları ──
+function spawnNetParticles(cx, cy){
+  for(let i=0;i<30;i++){
+    const angle = Math.random()*Math.PI*2;
+    const speed = 1.5 + Math.random()*4;
+    netParts.push({
+      x:cx, y:cy,
+      vx: Math.cos(angle)*speed,
+      vy: Math.sin(angle)*speed - 2,
+      life:1, decay: 0.025+Math.random()*0.02,
+      r: 2+Math.random()*4,
+      color: Math.random()<0.5 ? '#00E676' : '#FFD700'
+    });
   }
 }
 
-function buildDots(){
-  const cont=document.getElementById('attempts');cont.innerHTML='';
-  for(let i=0;i<TOTAL;i++){
-    const d=document.createElement('div');d.className='dot';d.id='dot-'+i;cont.appendChild(d);
+function drawNetParticles(){
+  for(let i=netParts.length-1;i>=0;i--){
+    const p=netParts[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.15;
+    p.life-=p.decay;
+    if(p.life<=0){netParts.splice(i,1);continue;}
+    ctx.save();
+    ctx.globalAlpha=p.life;
+    ctx.fillStyle=p.color;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
   }
 }
 
-// Kaleci hareketi — görüntüdeki konuma uygun %
-function moveKeeper(targetCol){
-  const kp=document.getElementById('keeper');
-  // Sol: kale sol direği civarı, Sağ: sağ direk, Orta: merkez
-  const sides={
-    left:['18%','20%','16%'],
-    center:['44%','47%','50%'],
-    right:['72%','70%','74%']
-  };
-  const rand=Math.random();
+// ── Konfeti ──
+function spawnConfetti(cx, cy){
+  for(let i=0;i<80;i++){
+    const angle = (Math.random()-0.5)*Math.PI*1.5 - Math.PI/2;
+    const speed = 4+Math.random()*10;
+    confetti.push({
+      x:cx, y:cy,
+      vx:Math.cos(angle)*speed+(Math.random()-0.5)*3,
+      vy:Math.sin(angle)*speed,
+      w:6+Math.random()*8,
+      h:3+Math.random()*5,
+      rot:Math.random()*Math.PI*2,
+      rotV:(Math.random()-0.5)*0.3,
+      life:1,
+      decay:0.008+Math.random()*0.008,
+      color:CONFETTI_COLORS[Math.floor(Math.random()*CONFETTI_COLORS.length)]
+    });
+  }
+}
+
+function drawConfetti(){
+  for(let i=confetti.length-1;i>=0;i--){
+    const c=confetti[i];
+    c.x+=c.vx; c.y+=c.vy; c.vy+=0.25; c.vx*=0.99;
+    c.rot+=c.rotV;
+    c.life-=c.decay;
+    if(c.life<=0){confetti.splice(i,1);continue;}
+    ctx.save();
+    ctx.globalAlpha=c.life;
+    ctx.translate(c.x,c.y);
+    ctx.rotate(c.rot);
+    ctx.fillStyle=c.color;
+    ctx.fillRect(-c.w/2,-c.h/2,c.w,c.h);
+    ctx.restore();
+  }
+}
+
+// ── Ağ Sallantısı ──
+let netShake = 0;
+let netShakeDir = 0;
+
+function drawGoalNet(){
+  const gr = goalRect();
+  const shakeX = netShake * Math.sin(Date.now()*0.04) * netShakeDir;
+  const shakeY = netShake * Math.abs(Math.sin(Date.now()*0.06));
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 1;
+
+  // Dikey çizgiler
+  const cols = 12;
+  for(let i=0;i<=cols;i++){
+    const x = gr.x + (gr.w/cols)*i;
+    const wave = shakeX * Math.sin(i/cols*Math.PI) * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x + wave, gr.y);
+    ctx.lineTo(x + wave*0.3, gr.y + gr.h + shakeY);
+    ctx.stroke();
+  }
+
+  // Yatay çizgiler
+  const rows = 8;
+  for(let j=0;j<=rows;j++){
+    const y = gr.y + (gr.h/rows)*j;
+    const waveY = shakeY * Math.sin(j/rows*Math.PI) * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(gr.x, y + waveY);
+    ctx.lineTo(gr.x + gr.w + shakeX*0.3, y + waveY);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Ağ azal
+  if(netShake > 0) netShake *= 0.95;
+}
+
+// ── Hedef Hover ──
+let hoverCell = {r:-1, c:-1};
+
+function getCellAt(px, py){
+  const gr = goalRect();
+  if(px<gr.x||px>gr.x+gr.w||py<gr.y||py>gr.y+gr.h) return {r:-1,c:-1};
+  const c = Math.floor((px-gr.x)/(gr.w/3));
+  const r = Math.floor((py-gr.y)/(gr.h/3));
+  return {r,c};
+}
+
+function drawGoalCells(){
+  const gr = goalRect();
+  const cw = gr.w/3, ch = gr.h/3;
+
+  for(let r=0;r<3;r++) for(let c=0;c<3;c++){
+    const x = gr.x + c*cw, y = gr.y + r*ch;
+    const isHover = hoverCell.r===r && hoverCell.c===c;
+
+    if(isHover && canShoot && gameActive){
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,215,0,0.18)';
+      ctx.strokeStyle = 'rgba(255,215,0,0.75)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(x+2,y+2,cw-4,ch-4,4);
+      ctx.fill();
+      ctx.stroke();
+
+      // Hedef işareti
+      const mx=x+cw/2, my=y+ch/2;
+      ctx.strokeStyle='rgba(255,215,0,0.6)';
+      ctx.lineWidth=1.5;
+      ctx.beginPath();
+      ctx.arc(mx,my,Math.min(cw,ch)*0.25,0,Math.PI*2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(mx-12,my);ctx.lineTo(mx+12,my);
+      ctx.moveTo(mx,my-12);ctx.lineTo(mx,my+12);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+}
+
+// ── Top Yay Animasyonu ──
+function easeInOutCubic(t){ return t<.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1; }
+
+function updateBall(dt){
+  if(ball.phase !== 'flying') return;
+  ball.t += dt / ball.duration;
+  const t = Math.min(ball.t, 1);
+  const e = easeInOutCubic(t);
+
+  ball.x = ball.startX + (ball.targetX - ball.startX)*e;
+
+  // Yay: parabolik yükseklik
+  const arc = Math.sin(t*Math.PI) * ball.arcHeight;
+  ball.y = ball.startY + (ball.targetY - ball.startY)*e - arc;
+
+  // Küçülme (uzaklaşma hissi)
+  ball.scale = 1 - t*0.62;
+
+  // Dönme
+  ball.rot += ball.rotV * dt;
+
+  if(t >= 1){
+    ball.phase = 'done';
+    ball.scale = 0.38;
+  }
+}
+
+function updateKeeper(dt){
+  if(keeper.phase === 'idle') return;
+
+  keeper.dt += dt;
+
+  if(keeper.phase === 'diving'){
+    const p = Math.min(keeper.dt/0.45, 1);
+    const e = easeInOutCubic(p);
+    keeper.x = keeper.startX + (keeper.tx - keeper.startX)*e;
+    if(p >= 1) keeper.phase = 'hold';
+  }
+
+  if(keeper.phase === 'back'){
+    const p = Math.min(keeper.dt/0.6, 1);
+    const e = easeInOutCubic(p);
+    const gr = goalRect();
+    const cx = gr.x + gr.w/2;
+    keeper.x = keeper.tx + (cx - keeper.tx)*e;
+    if(p >= 1){
+      keeper.phase='idle';
+      keeper.x = gr.x + gr.w/2;
+    }
+  }
+}
+
+// ── Atış ──
+function shoot(row, col){
+  if(!canShoot || !gameActive) return;
+  canShoot = false;
+  document.getElementById('banner').style.display = 'none';
+
+  const gr = goalRect();
+  const cw = gr.w/3, ch = gr.h/3;
+  const tx = gr.x + col*cw + cw/2;
+  const ty = gr.y + row*ch + ch/2;
+
+  // Kaleci hareketi
+  const colMap = {0:'left',1:'center',2:'right'};
+  const rand = Math.random();
   let side;
-  if(targetCol===0)      side=rand<0.50?'left':(rand<0.75?'center':'right');
-  else if(targetCol===2) side=rand<0.50?'right':(rand<0.75?'center':'left');
-  else                   side=rand<0.33?'left':(rand<0.66?'center':'right');
+  if(col===0)      side=rand<0.50?'left':(rand<0.75?'center':'right');
+  else if(col===2) side=rand<0.50?'right':(rand<0.75?'center':'left');
+  else             side=rand<0.33?'left':(rand<0.66?'center':'right');
 
-  const pos=sides[side][Math.floor(Math.random()*3)];
-  kp.style.left=pos;
+  const sideX = {left: gr.x+gr.w*0.17, center: gr.x+gr.w*0.5, right: gr.x+gr.w*0.83};
+  keeper.startX = keeper.x;
+  keeper.tx = sideX[side];
+  keeper.dir = side==='left'?-1:(side==='right'?1:0);
+  keeper.phase = 'diving';
+  keeper.dt = 0;
 
-  // Kaleci yüzü hedefe dönsün
-  const svg=document.getElementById('keeperSvg');
-  svg.style.transform=(side==='left')?'scaleX(-1)':'scaleX(1)';
-  return side;
-}
-
-async function shoot(row,col){
-  if(!canShoot||!gameActive)return;
-  canShoot=false;
-
-  const ball=document.getElementById('ball');
-  const gz=document.getElementById('goalZone');
-  document.getElementById('shootBanner').style.display='none';
-
-  const zr=gz.getBoundingClientRect();
-  const cw2=zr.width/3,ch2=zr.height/3;
-  const tx=zr.left+cw2*col+cw2/2;
-  const ty=zr.top+ch2*row+ch2/2;
-  const br=ball.getBoundingClientRect();
-  const bx=br.left+br.width/2,by=br.top+br.height/2;
-
-  document.getElementById('keeper').style.transition='left 0.27s cubic-bezier(0.25,0.46,0.45,0.94)';
-  const ks=moveKeeper(col);
-
-  ball.classList.add('shooting');
-  ball.style.transform=`translateX(calc(-50% + ${tx-bx}px)) translateY(${ty-by}px) scale(0.35)`;
-
-  const colMap={0:'left',1:'center',2:'right'};
-  const ts=colMap[col];
+  // Gol hesapla
   let saved=false;
-  if(ks===ts){
-    if(row===0&&col!==1)saved=Math.random()<0.20;   // Üst köşe — zor
-    else if(row===0)    saved=Math.random()<0.30;   // Üst orta
-    else                saved=Math.random()<0.60;   // Alt/orta
-  }else{
-    saved=Math.random()<0.04;  // Yanlış tarafa atladı
+  if(side===colMap[col]){
+    if(row===0&&col!==1) saved=Math.random()<0.20;
+    else if(row===0)     saved=Math.random()<0.30;
+    else                 saved=Math.random()<0.62;
+  } else {
+    saved=Math.random()<0.04;
   }
 
-  await sleep(570);
+  // Top animasyonu
+  ball.phase = 'flying';
+  ball.startX = ball.x;
+  ball.startY = ball.y;
+  ball.targetX = tx;
+  ball.targetY = ty;
+  ball.duration = 0.55;
+  ball.arcHeight = H * 0.18;
+  ball.t = 0;
+  ball.rotV = (col<1?-8:8) * Math.PI;
+  ball.saved = saved;
 
+  shotTarget = {row,col,tx,ty};
+
+  setTimeout(()=>{
+    onShotLand(saved, tx, ty);
+  }, 580);
+}
+
+function onShotLand(saved, tx, ty){
   shots++;
-  const dot=document.getElementById('dot-'+(shots-1));
+  const dot = document.getElementById('dot-'+(shots-1));
 
   if(!saved){
     goals++;
-    document.getElementById('scoreGoal').textContent=goals;
-    if(dot)dot.classList.add('goal');
-    const nf=document.getElementById('netFlash');
-    nf.classList.add('flash');
-    setTimeout(()=>nf.classList.remove('flash'),800);
+    document.getElementById('sGoal').textContent = goals;
+    if(dot) dot.classList.add('goal');
+    // Ağ sallantısı
+    netShake = 14;
+    netShakeDir = tx < W/2 ? -1 : 1;
+    spawnNetParticles(tx, ty);
+    spawnConfetti(tx, ty - H*0.05);
     showResult(true);
-  }else{
+  } else {
     misses++;
-    document.getElementById('scoreMiss').textContent=misses;
-    if(dot)dot.classList.add('miss');
+    document.getElementById('sMiss').textContent = misses;
+    if(dot) dot.classList.add('miss');
     showResult(false);
   }
-  document.getElementById('scoreRemain').textContent=TOTAL-shots;
+  document.getElementById('sRemain').textContent = TOTAL - shots;
 }
 
 function showResult(isGoal){
-  const ov=document.getElementById('resOverlay');
-  document.getElementById('resEmoji').textContent=isGoal?'⚽':'🧤';
-  const rt=document.getElementById('resText');
-  rt.textContent=isGoal?'GOL!':'TUTUDU!';
-  rt.className='res-text '+(isGoal?'gt':'mt');
-  const msgs=isGoal?goalMsgs:missMsgs;
-  document.getElementById('resSub').textContent=msgs[Math.floor(Math.random()*msgs.length)];
+  const ov = document.getElementById('result');
+  document.getElementById('rEmoji').textContent = isGoal ? '⚽' : '🧤';
+  const rt = document.getElementById('rTxt');
+  rt.textContent = isGoal ? 'GOL!' : 'TUTUDU!';
+  rt.className = 'rtxt '+(isGoal?'gt':'mt');
+  const msgs = isGoal ? goalMsgs : missMsgs;
+  document.getElementById('rSub').textContent = msgs[Math.floor(Math.random()*msgs.length)];
   ov.classList.add('show');
+
   setTimeout(()=>{
     ov.classList.remove('show');
-    resetBall();
-    if(shots>=TOTAL)setTimeout(showFinal,420);
-    else{canShoot=true;document.getElementById('shootBanner').style.display='';}
-  },1500);
-}
-
-function resetBall(){
-  const ball=document.getElementById('ball');
-  ball.classList.remove('shooting');
-  ball.style.transition='none';
-  ball.style.transform='translateX(-50%)';
-  setTimeout(()=>{
-    const kp=document.getElementById('keeper');
-    kp.style.left='50%';kp.style.transform='translateX(-50%)';
-    document.getElementById('keeperSvg').style.transform='scaleX(1)';
-  },130);
+    // Kaleci geri dönsün
+    keeper.phase='back';
+    keeper.dt=0;
+    // Top sıfırla
+    initBall();
+    if(shots >= TOTAL) setTimeout(showFinal, 450);
+    else {
+      canShoot = true;
+      document.getElementById('banner').style.display='';
+    }
+  }, 1600);
 }
 
 function showFinal(){
-  document.getElementById('finScore').textContent=goals+' / '+TOTAL+' GOL';
-  const pct=goals/TOTAL;
-  const t=document.getElementById('finTrophy'),ti=document.getElementById('finTitle'),m=document.getElementById('finMsg');
+  const pct = goals/TOTAL;
+  const t=document.getElementById('fTrophy'),
+        ti=document.getElementById('fTitle'),
+        m=document.getElementById('fMsg');
+  document.getElementById('fScore').textContent = goals+'/'+TOTAL+' GOL';
   if(pct===1){t.textContent='🏆';ti.textContent='MÜKEMMEL!';ti.style.color='#FFD700';m.textContent='Tüm penaltıları gol yaptın! Gerçek bir penaltı ustasısın!';}
-  else if(pct>=0.8){t.textContent='🥇';ti.textContent='HARİKA!';ti.style.color='#FFD700';m.textContent='Çok iyi! Bir dahaki sefere tümünü atabilirsin!';}
+  else if(pct>=0.8){t.textContent='🥇';ti.textContent='HARİKA!';ti.style.color='#FFD700';m.textContent='Çok iyi bir skor! Bir dahaki sefere tümünü at!';}
   else if(pct>=0.6){t.textContent='⭐';ti.textContent='İYİ!';ti.style.color='#4FC3F7';m.textContent='Güzel oyun! Pratik yaptıkça daha iyiye gideceksin.';}
-  else if(pct>=0.4){t.textContent='💪';ti.textContent='DEVAM ET!';ti.style.color='#FF9800';m.textContent='Kaleci bugün biraz şanslıydı. Tekrar dene!';}
-  else{t.textContent='😅';ti.textContent='OLMADI!';ti.style.color='#FF5252';m.textContent='Bu sefer kaleci kazandı! Rövanş ver!';}
-  document.getElementById('finalOverlay').classList.add('show');
+  else if(pct>=0.4){t.textContent='💪';ti.textContent='DEVAM ET!';ti.style.color='#FF9800';m.textContent='Kaleci bugün biraz şanslıydı. Rövanş ver!';}
+  else{t.textContent='😅';ti.textContent='OLMADI!';ti.style.color='#FF5252';m.textContent='Bu sefer kaleci kazandı! Tekrar dene!';}
+  document.getElementById('final').classList.add('show');
   gameActive=false;
+  // Final konfeti
+  spawnConfetti(W/2, H*0.3);
+  setTimeout(()=>spawnConfetti(W*0.3,H*0.4),300);
+  setTimeout(()=>spawnConfetti(W*0.7,H*0.4),600);
   if(tg){try{tg.sendData(JSON.stringify({game:'penalti',goals,misses,total:TOTAL}));}catch(e){}}
 }
 
 function resetGame(){
   goals=0;misses=0;shots=0;canShoot=true;gameActive=true;
-  document.getElementById('scoreGoal').textContent='0';
-  document.getElementById('scoreMiss').textContent='0';
-  document.getElementById('scoreRemain').textContent=TOTAL;
-  document.getElementById('finalOverlay').classList.remove('show');
-  document.getElementById('shootBanner').style.display='';
-  buildDots();resetBall();
+  document.getElementById('sGoal').textContent='0';
+  document.getElementById('sMiss').textContent='0';
+  document.getElementById('sRemain').textContent=TOTAL;
+  document.getElementById('final').classList.remove('show');
+  document.getElementById('banner').style.display='';
+  confetti=[]; netParts=[];
+  buildDots();
+  initBall();
+  initKeeper();
 }
 
 function shareResult(){
-  const txt=`⚽ Pusulabet Penaltı: ${goals}/${TOTAL} gol attım! Sen de oyna → @pusulasocial`;
+  const txt=`⚽ Pusulabet Penaltı: ${goals}/${TOTAL} gol! @pusulasocial`;
   if(tg&&tg.openTelegramLink)tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/pusulabetgame_bot/penalti&text=${encodeURIComponent(txt)}`);
   else if(navigator.share)navigator.share({text:txt});
 }
 
-function startGame(){document.getElementById('startScreen').style.display='none';gameActive=true;canShoot=true;}
-function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function startGame(){
+  document.getElementById('start').style.display='none';
+  gameActive=true;canShoot=true;
+}
 
-buildGrid();buildDots();
+// ── Input ──
+canvas.addEventListener('mousemove', e=>{
+  if(!gameActive||!canShoot) return;
+  hoverCell = getCellAt(e.clientX, e.clientY);
+});
+canvas.addEventListener('click', e=>{
+  if(!gameActive||!canShoot) return;
+  const cell = getCellAt(e.clientX, e.clientY);
+  if(cell.r>=0) shoot(cell.r, cell.c);
+});
+canvas.addEventListener('touchstart', e=>{
+  if(!gameActive||!canShoot) return;
+  const t=e.touches[0];
+  const cell=getCellAt(t.clientX,t.clientY);
+  if(cell.r>=0){e.preventDefault();shoot(cell.r,cell.c);}
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  if(!gameActive||!canShoot)return;
+  const t=e.touches[0];
+  hoverCell=getCellAt(t.clientX,t.clientY);
+},{passive:true});
+
+// ── UI butonları pointer-events ──
+function buildDots(){
+  const cont=document.getElementById('dots');
+  cont.innerHTML='';
+  for(let i=0;i<TOTAL;i++){
+    const d=document.createElement('div');
+    d.className='dot';d.id='dot-'+i;cont.appendChild(d);
+  }
+}
+
+// ── Ana Döngü ──
+let lastT=0;
+function loop(ts){
+  const dt = Math.min((ts-lastT)/1000, 0.05);
+  lastT=ts;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Arka plan
+  if(bgImg.complete && bgImg.naturalWidth){
+    const iw=bgImg.naturalWidth,ih=bgImg.naturalHeight;
+    const s=Math.max(W/iw,H/ih);
+    const dw=iw*s,dh=ih*s;
+    ctx.drawImage(bgImg,(W-dw)/2,(H-dh)/2,dw,dh);
+  } else {
+    const gr=ctx.createLinearGradient(0,0,0,H);
+    gr.addColorStop(0,'#0d3b0d');gr.addColorStop(1,'#0a2a0a');
+    ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
+  }
+
+  // Karartma
+  const dark=ctx.createLinearGradient(0,0,0,H);
+  dark.addColorStop(0,'rgba(0,0,0,0.08)');
+  dark.addColorStop(0.5,'rgba(0,0,0,0.0)');
+  dark.addColorStop(1,'rgba(0,0,0,0.45)');
+  ctx.fillStyle=dark;ctx.fillRect(0,0,W,H);
+
+  // Ağ
+  drawGoalNet();
+
+  // Hedef cells
+  if(gameActive && canShoot) drawGoalCells();
+
+  // Kaleci güncelle & çiz
+  updateKeeper(dt);
+  drawKeeper();
+
+  // Konfeti
+  drawConfetti();
+
+  // Ağ parçacıkları
+  drawNetParticles();
+
+  // Top
+  updateBall(dt);
+  drawBall();
+
+  requestAnimationFrame(loop);
+}
+
+// ── Başlat ──
+buildDots();
+initBall();
+initKeeper();
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>
