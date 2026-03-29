@@ -104,9 +104,10 @@ body{background:#061208;overflow:hidden;height:100dvh;width:100vw;font-family:'R
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
-/** index.html ile ayni klasordeki assets/ — file:// ve https uyumlu */
+/** HTML dosyasinin bulundugu klasore gore assets/ — GitHub Pages (alt yol) guvenli */
 function resolveAsset(relPath){
-  return new URL(relPath, import.meta.url).href;
+  const baseDir=new URL('.', import.meta.url).href;
+  return new URL(relPath, baseDir).href;
 }
 
 // —— Asset / sprite config ——
@@ -150,7 +151,7 @@ const fx=document.getElementById('fx');
 const fctx=fx.getContext('2d');
 
 let W=innerWidth,H=innerHeight;
-let renderer,camera;
+let renderer, camera;
 
 function size(){
   W=innerWidth; H=innerHeight;
@@ -170,7 +171,7 @@ const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x0d2818);
 scene.fog=new THREE.Fog(0x1a3d28,40,120);
 
-const camera=new THREE.PerspectiveCamera(40,W/H,0.1,200);
+camera=new THREE.PerspectiveCamera(40,W/H,0.1,200);
 camera.position.set(0,1.05,4.35);
 camera.lookAt(0,1.05,GZ+GH*0.35);
 
