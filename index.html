@@ -94,177 +94,251 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
       <div class="srules">
         <div class="ri"><div class="ric">⚽</div><span class="rit">5 Atis</span></div>
         <div class="ri"><div class="ric">🥅</div><span class="rit">9 Kose</span></div>
-        <div class="ri"><div class="ric">✨</div><span class="rit">Sprite</span></div>
+        <div class="ri"><div class="ric">✨</div><span class="rit">3D</span></div>
       </div>
       <button type="button" class="btnP" id="btnStart" style="font-size:26px;padding:16px;pointer-events:all;">⚽ BASLAT</button>
     </div>
   </div>
 </div>
 
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
 <script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
-/** HTML dosyasinin bulundugu klasore gore assets/ — GitHub Pages (alt yol) guvenli */
+/** HTML dosyasının bulunduğu klasöre göre assets/ — GitHub Pages uyumlu */
 function resolveAsset(relPath){
   const baseDir=new URL('.', import.meta.url).href;
   return new URL(relPath, baseDir).href;
 }
 
-// —— Asset / sprite config ——
+// ——————————————————————————————————————————————
+// Asset / Karakter Config
+// ——————————————————————————————————————————————
 const CFG = {
   ASSETS: {
-    bg: resolveAsset('assets/bg.png'),
+    bg:   resolveAsset('assets/bg.png'),
     ball: resolveAsset('assets/ball.png'),
-    player: resolveAsset('assets/arda.png'),
-    keeper: resolveAsset('assets/keeper.png'),
+    fbx: {
+      arda_kick:             resolveAsset('assets/arda kick.fbx'),        // boşluk → %20
+      arda_idle:             resolveAsset('assets/arda idle.fbx'),
+      keeper_idle:           resolveAsset('assets/keeper_idle.fbx'),
+      keeper_dive_left:      resolveAsset('assets/keeper_dive_left.fbx'),
+      keeper_dive_right:     resolveAsset('assets/keeper_dive_right.fbx'),
+      keeper_save_low_left:  resolveAsset('assets/keeper_save_low_left.fbx'),
+      keeper_save_low_right: resolveAsset('assets/keeper_save_low_right.fbx'),
+      keeper_sidestep_left:  resolveAsset('assets/keeper_sidestep_left.fbx'),
+      keeper_sidestep_right: resolveAsset('assets/keeper_sidestep_right.fbx'),
+    }
   },
-  playerFrameWidth: 256,
-  playerFrameHeight: 384,
-  playerFrameCount: 4,
-  keeperFrameWidth: 320,
-  keeperFrameHeight: 384,
-  keeperFrameCount: 5,
+  ARDA_HEIGHT:   1.20,   // metre — sprite sistemiyle aynı görsel oran (~%34 ekran)
+  KEEPER_HEIGHT: 1.90,   // metre — gerçekçi kaleci boyu
 };
 
+// ——————————————————————————————————————————————
+// FBX Yardımcı Fonksiyonlar
+// ——————————————————————————————————————————————
+const fbxLoader = new FBXLoader();
+
+function loadFBX(url) {
+  return new Promise((resolve, reject) => {
+    fbxLoader.load(url, resolve, undefined, (err) => {
+      console.error('[FBX] Yüklenemedi:', url, err);
+      reject(new Error('FBX yüklenemedi: ' + url));
+    });
+  });
+}
+
 /**
- * Yatay sprite sheet: tek satir, repeat.x = 1/n, offset.x = i/n
- * UV inset: texture.userData.framePxW ayarlıysa, her kare kenarından
- * 0.5 texel içeri çekilir → doğrusal örneklemeden kaynaklanan
- * komşu-kare taşması (bleeding) engellenir.
+ * Modeli hedef yüksekliğe uniform ölçekle; ayakları y=0'a yerleştir.
+ * Mixamo FBX dosyaları genellikle cm ölçeğinde (~170 birim) gelir.
+ * Bu fonksiyon tutarlı metre ölçeğine getirir.
  */
-function applySpriteFrame(texture, frameIndex, frameCount){
-  const i=Math.max(0,Math.min(frameCount-1,frameIndex|0));
-  texture.wrapS=THREE.ClampToEdgeWrapping;
-  texture.wrapT=THREE.ClampToEdgeWrapping;
-  // eps = 0.5 piksel / toplam sheet genişliği (UV birimi)
-  const fpw=texture.userData?.framePxW||0;
-  const eps=fpw ? 0.5/(fpw*frameCount) : 0;
-  texture.repeat.set(1/frameCount - 2*eps, 1);
-  texture.offset.set(i/frameCount + eps, 0);
-  texture.needsUpdate=true;
+function normalizeFBX(model, targetH) {
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const sz  = new THREE.Vector3();
+  box.getSize(sz);
+  if (sz.y < 0.001) { console.warn('[normalizeFBX] Sıfır yükseklik, atlanıyor'); return; }
+  const s = targetH / sz.y;
+  model.scale.multiplyScalar(s);
+  model.updateMatrixWorld(true);
+  const b2 = new THREE.Box3().setFromObject(model);
+  model.position.y -= b2.min.y;  // ayakları y=0'a çek
 }
 
-function prepareSheetTexture(tex){
-  tex.colorSpace=THREE.SRGBColorSpace;
-  tex.minFilter=THREE.LinearMipmapLinearFilter;
-  tex.magFilter=THREE.LinearFilter;
-  tex.generateMipmaps=true;
+/**
+ * Animasyon klibinden root-motion position parçacıklarını kaldır.
+ * Rotation track'leri (karakter pozu) korunur.
+ * Dünya-uzayı pozisyonu kState mantığıyla manuel kontrol edilir.
+ */
+function removePositionTracks(clip) {
+  clip.tracks = clip.tracks.filter(t => !t.name.endsWith('.position'));
+  return clip;
 }
 
-/** Tek TextureLoader — tum asset yuklemeleri */
-const textureLoader=new THREE.TextureLoader();
-textureLoader.setCrossOrigin('anonymous');
+// ——————————————————————————————————————————————
+// Arda Animasyon Sistemi
+// ——————————————————————————————————————————————
+let ardaMixer = null;
+const ardaActions = { idle: null, kick: null };
+let ardaCurrentAction = null;
 
-let tg=null;
-try{tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();tg.setHeaderColor('#061208');}}catch(e){}
+function ardaFadeTo(name, fadeDur = 0.2) {
+  const next = ardaActions[name];
+  if (!next) return;
+  next.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
+  if (ardaCurrentAction && ardaCurrentAction !== next)
+    ardaCurrentAction.crossFadeTo(next, fadeDur, true);
+  ardaCurrentAction = next;
+}
 
-const canvas=document.getElementById('c');
-const fx=document.getElementById('fx');
-const fctx=fx.getContext('2d');
+// ——————————————————————————————————————————————
+// Kaleci Animasyon Sistemi
+// ——————————————————————————————————————————————
+let keeperMixer = null;
+const keeperActions = {
+  idle:           null,
+  dive_left:      null,
+  dive_right:     null,
+  save_low_left:  null,
+  save_low_right: null,
+  sidestep_left:  null,
+  sidestep_right: null,
+};
+let keeperCurrentAction = null;
 
-let W=innerWidth,H=innerHeight;
+function keeperFadeTo(name, fadeDur = 0.25) {
+  const next = keeperActions[name];
+  if (!next) {
+    // İstenen animasyon yüklü değilse idle'a geri dön
+    console.warn('[keeperFadeTo] Animasyon bulunamadı:', name);
+    if (name !== 'idle' && keeperActions.idle) keeperFadeTo('idle', fadeDur);
+    return;
+  }
+  next.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
+  if (keeperCurrentAction && keeperCurrentAction !== next)
+    keeperCurrentAction.crossFadeTo(next, fadeDur, true);
+  keeperCurrentAction = next;
+}
+
+/**
+ * Şut bölgesine göre kaleci animasyon adını seç.
+ * row: 0=üst  1=orta  2=alt  |  col: 0=sol  1=orta  2=sağ
+ */
+function pickKeeperAnimation(row, col) {
+  if (row === 2) {
+    // Alt bölge → alçak kurtarış
+    if (col === 0) return 'save_low_left';
+    if (col === 2) return 'save_low_right';
+    return Math.random() < 0.5 ? 'save_low_left' : 'save_low_right';
+  }
+  if (col === 1) {
+    // Orta sütun → yana adım
+    return Math.random() < 0.5 ? 'sidestep_left' : 'sidestep_right';
+  }
+  // Üst / orta köşe → dalış
+  return col === 0 ? 'dive_left' : 'dive_right';
+}
+
+// ——————————————————————————————————————————————
+// Three.js Sahne Kurulumu
+// ——————————————————————————————————————————————
+let tg = null;
+try { tg=window.Telegram?.WebApp; if(tg){tg.ready();tg.expand();tg.setHeaderColor('#061208');} } catch(e) {}
+
+const canvas = document.getElementById('c');
+const fx     = document.getElementById('fx');
+const fctx   = fx.getContext('2d');
+
+let W = innerWidth, H = innerHeight;
 let renderer, camera;
 
-function size(){
+function size() {
   W=innerWidth; H=innerHeight;
   canvas.width=W; canvas.height=H;
   fx.width=W; fx.height=H;
   if(renderer) renderer.setSize(W,H,false);
   if(camera) camera.aspect=W/H, camera.updateProjectionMatrix();
 }
-addEventListener('resize',size);
+addEventListener('resize', size);
 
-const DIST=11;
-const GW=7.32, GH=2.44;
-const GZ=-DIST;
-const BALL_R=0.11;
+const DIST   = 11;
+const GW     = 7.32, GH = 2.44;
+const GZ     = -DIST;
+const BALL_R = 0.11;
 
-const scene=new THREE.Scene();
-// background null → renderer canvas alpha ile body CSS'i göster (bg yüklenene kadar)
-// bg.png yüklenince plane tam ekranı kaplar
-scene.background=null;
-scene.fog=null; // fog kaldırıldı → keeper ve kale net görünsün
+const scene = new THREE.Scene();
+scene.background = null;
+scene.fog = null;
 
-// FOV=38° (biraz dar → daha az distorsiyon, daha sinematik)
-// Kamera ceza noktasının biraz arkasında ve alçakta
-// lookAt: kale orta-üstüne bakıyor
-camera=new THREE.PerspectiveCamera(38,W/H,0.1,200);
-camera.position.set(0,0.85,5.5);
-camera.lookAt(0,1.5,GZ);
+camera = new THREE.PerspectiveCamera(38, W/H, 0.1, 200);
+camera.position.set(0, 0.85, 5.5);
+camera.lookAt(0, 1.5, GZ);
 
-// alpha:true → scene.background=null ile bg.png plane'e geçiş görünmez
-renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-renderer.setSize(W,H,false);
-renderer.shadowMap.enabled=true;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-renderer.outputColorSpace=THREE.SRGBColorSpace;
-renderer.toneMapping=THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure=1.05;
+renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(W, H, false);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
 
-// Ambient biraz daha yüksek → top ve zemin daha parlak
-const amb=new THREE.AmbientLight(0xffffff,0.75);
+const amb = new THREE.AmbientLight(0xffffff, 0.75);
 scene.add(amb);
-const sun=new THREE.DirectionalLight(0xfff5e6,1.0);
-sun.position.set(-8,22,12);
-sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);
+const sun = new THREE.DirectionalLight(0xfff5e6, 1.0);
+sun.position.set(-8, 22, 12);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.near=1; sun.shadow.camera.far=60;
 sun.shadow.camera.left=-25; sun.shadow.camera.right=25;
 sun.shadow.camera.top=25; sun.shadow.camera.bottom=-25;
 scene.add(sun);
-const fill=new THREE.DirectionalLight(0xaaccff,0.22);
-fill.position.set(10,8,-5);
+const fill = new THREE.DirectionalLight(0xaaccff, 0.22);
+fill.position.set(10, 8, -5);
 scene.add(fill);
 
-// —— Yer ——
-// Transparan → bg.png tüm ekranı kaplar, 3D ground renk geçişi yok
-// receiveShadow:true korunuyor (top gölgesi çalışmaya devam eder)
-const ground=new THREE.Mesh(
-  new THREE.PlaneGeometry(120,120),
-  new THREE.MeshStandardMaterial({
-    color:0x3d7228,roughness:0.9,metalness:0,
-    transparent:true,opacity:0.0,
-    depthWrite:false
-  })
+// —— Zemin (transparan — bg.png tüm ekranı kaplar) ——
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(120, 120),
+  new THREE.MeshStandardMaterial({color:0x3d7228,roughness:0.9,metalness:0,transparent:true,opacity:0.0,depthWrite:false})
 );
-ground.rotation.x=-Math.PI/2;
-ground.receiveShadow=true;
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
 scene.add(ground);
 
-const lineMat=new THREE.MeshBasicMaterial({color:0xffffff});
-const spot=new THREE.Mesh(new THREE.CircleGeometry(0.22,32),lineMat);
-spot.rotation.x=-Math.PI/2;
-spot.position.set(0,0.02,0);
+const lineMat = new THREE.MeshBasicMaterial({color:0xffffff});
+const spot = new THREE.Mesh(new THREE.CircleGeometry(0.22, 32), lineMat);
+spot.rotation.x = -Math.PI/2;
+spot.position.set(0, 0.02, 0);
 scene.add(spot);
-const pa=new THREE.Mesh(new THREE.PlaneGeometry(9.15,0.12),lineMat);
-pa.rotation.x=-Math.PI/2;
-pa.position.set(0,0.02,-5.5);
+const pa = new THREE.Mesh(new THREE.PlaneGeometry(9.15, 0.12), lineMat);
+pa.rotation.x = -Math.PI/2;
+pa.position.set(0, 0.02, -5.5);
 scene.add(pa);
 
-// 3D kale direkleri ve file KALDIRILDI — bg.png zaten gerçek kale içeriyor.
-// Çift kale efekti engellendi. goalPlane + hiGroup hücre tespiti için korunuyor.
+// 3D kale direkleri kaldırıldı — bg.png kale içeriyor.
+const goalPlane = new THREE.Plane(new THREE.Vector3(0,0,1), -GZ);
+const raycaster = new THREE.Raycaster();
+const ndc       = new THREE.Vector2();
+const hitPt     = new THREE.Vector3();
 
-const goalPlane=new THREE.Plane(new THREE.Vector3(0,0,1),-GZ);
-const raycaster=new THREE.Raycaster();
-const ndc=new THREE.Vector2();
-const hitPt=new THREE.Vector3();
-const camPos=new THREE.Vector3();
-
-function worldFromCell(row,col){
+function worldFromCell(row, col) {
   const cw=GW/3, ch=GH/3;
-  const x=-GW/2+cw*(col+0.5);
-  const y=ch*((2-row)+0.5);
-  return new THREE.Vector3(x,y,GZ+0.02);
+  return new THREE.Vector3(-GW/2+cw*(col+0.5), ch*((2-row)+0.5), GZ+0.02);
 }
 
-let hoverCell={r:-1,c:-1};
-const hiGroup=new THREE.Group();
+let hoverCell = {r:-1, c:-1};
+const hiGroup = new THREE.Group();
 scene.add(hiGroup);
-function buildHiMeshes(){
+
+function buildHiMeshes() {
   while(hiGroup.children.length) hiGroup.remove(hiGroup.children[0]);
   const cw=GW/3, ch=GH/3;
-  const mat=new THREE.MeshBasicMaterial({color:0xffd700,transparent:true,opacity:0,depthWrite:false});
+  const mat = new THREE.MeshBasicMaterial({color:0xffd700,transparent:true,opacity:0,depthWrite:false});
   for(let r=0;r<3;r++) for(let c=0;c<3;c++){
     const m=new THREE.Mesh(new THREE.PlaneGeometry(cw-0.12,ch-0.12),mat.clone());
     m.position.set(-GW/2+cw*(c+0.5),ch*(2-r)+ch/2,GZ+0.04);
@@ -273,88 +347,53 @@ function buildHiMeshes(){
   }
 }
 buildHiMeshes();
-const hiMeshes=hiGroup.children;
+const hiMeshes = hiGroup.children;
 
-// —— Referanslar (yukleme sonrasi dolar) ——
-let ballMesh, playerRoot, playerMat, playerTex;
-let keeperRoot, keeperMat, keeperTex;
-let bgMesh;
-
-// Player: 1.78→1.18 (%34 küçük) — kale görünür, keeper seçilir
-// mesafe=4.95m, FOV=38° → ekranın ~%34'ü dikey
-const PLAYER_WorldH=1.18;
-const PLAYER_WorldW=PLAYER_WorldH*(CFG.playerFrameWidth/CFG.playerFrameHeight);
-// Keeper: 1.72→2.55 (%48 büyük) — 16.15m uzakta, ekranın ~%23'ü (kale üstüne biraz taşar, görünürlük ↑)
-const KEEPER_WorldH=2.55;
-const KEEPER_WorldW=KEEPER_WorldH*(CFG.keeperFrameWidth/CFG.keeperFrameHeight);
+// —— Referanslar (boot() sonrası dolar) ——
+let ballMesh, ardaRoot, keeperRoot, bgMesh;
 
 function easeOutCubic(t){return 1-Math.pow(1-t,3);}
 function easeInOut(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
 
-/**
- * Kaleci frame: 0 idle, 1 dive_left, 2 dive_right, 3 jump_up_left, 4 jump_up_right
- * AI side + sut bolgesine gore (gerekirse 1/2 swap)
- */
-function pickKeeperSpriteFrame(side, row, col){
-  if(row===0){
-    if(col===0) return 3;
-    if(col===2) return 4;
-    return Math.random()<0.5?3:4;
-  }
-  if(side==='left') return 1;
-  if(side==='right') return 2;
-  return Math.random()<0.5?1:2;
-}
+// ——————————————————————————————————————————————
+// Oyun Durumu
+// ——————————————————————————————————————————————
+// kState: kaleci root-grup dünya-uzayı pozisyon animasyonu
+// (FBX kemik pozu ayrıca AnimationMixer tarafından yönetilir)
+let kState = {phase:'idle', t:0, sx:0, tx:0, srot:0, trot:0, saved:false};
+let ballAnim = {active:false, t:0, dur:0.58, p0:null, p1:null, p2:null};
 
-/** Oyuncu: idle(0) run(1) prep(2) kick(3) */
-let playerAnim={phase:'idle',t:0};
-
-let kState={phase:'idle',t:0,sx:0,tx:0,srot:0,trot:0,diveFrame:0};
-
-let ballAnim={active:false,t:0,dur:0.62,p0:null,p1:null,p2:null};
-
-const TOTAL=5;
+const TOTAL = 5;
 const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡","Aglari salladi! 🌊"];
 const MMSG=["Kaleci tuttu! 🧤","Az kaldi! 😅","Direkce carpti!","Kacti! 😬","Kaleci sezdi! 👀","Kurtaris! 🙌"];
 const COLORS=['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'];
 
-let goals=0,misses=0,shots=0,gameActive=false,canShoot=true;
-let particles=[],confetti=[];
+let goals=0, misses=0, shots=0, gameActive=false, canShoot=true;
+let particles=[], confetti=[];
 let assetsReady=false;
 
 function startGame(){
   const st=document.getElementById('start');
   if(st) st.style.display='none';
-  gameActive=true;
-  canShoot=true;
+  gameActive=true; canShoot=true;
 }
 window.startGame=startGame;
-document.getElementById('btnStart')?.addEventListener('click',(e)=>{ e.preventDefault(); startGame(); });
+document.getElementById('btnStart')?.addEventListener('click',(e)=>{e.preventDefault();startGame();});
 
 function setHiOpacity(r,c,op){
-  hiMeshes.forEach(m=>{
-    const u=m.userData;
-    m.material.opacity=(r>=0&&u.r===r&&u.c===c)?op:0;
-  });
+  hiMeshes.forEach(m=>{const u=m.userData; m.material.opacity=(r>=0&&u.r===r&&u.c===c)?op:0;});
 }
 
 function updateHover(clientX,clientY){
-  if(!gameActive||!canShoot){ setHiOpacity(-1,-1,0); return; }
-  ndc.x=(clientX/W)*2-1;
-  ndc.y=-(clientY/H)*2+1;
+  if(!gameActive||!canShoot){setHiOpacity(-1,-1,0);return;}
+  ndc.x=(clientX/W)*2-1; ndc.y=-(clientY/H)*2+1;
   raycaster.setFromCamera(ndc,camera);
-  if(!raycaster.ray.intersectPlane(goalPlane,hitPt)){ setHiOpacity(-1,-1,0); hoverCell={r:-1,c:-1}; return; }
-  if(hitPt.x<-GW/2||hitPt.x>GW/2||hitPt.y<0||hitPt.y>GH){ setHiOpacity(-1,-1,0); hoverCell={r:-1,c:-1}; return; }
-  const cw=GW/3, ch=GH/3;
+  if(!raycaster.ray.intersectPlane(goalPlane,hitPt)){setHiOpacity(-1,-1,0);hoverCell={r:-1,c:-1};return;}
+  if(hitPt.x<-GW/2||hitPt.x>GW/2||hitPt.y<0||hitPt.y>GH){setHiOpacity(-1,-1,0);hoverCell={r:-1,c:-1};return;}
+  const cw=GW/3,ch=GH/3;
   const c=Math.min(2,Math.max(0,Math.floor((hitPt.x+GW/2)/cw)));
   const r=2-Math.min(2,Math.max(0,Math.floor(hitPt.y/ch)));
-  hoverCell={r,c};
-  setHiOpacity(r,c,0.28);
-}
-
-function billboardSprite(group){
-  camera.getWorldPosition(camPos);
-  group.lookAt(camPos.x,group.position.y,camPos.z);
+  hoverCell={r,c}; setHiOpacity(r,c,0.28);
 }
 
 function shoot(row,col){
@@ -370,11 +409,11 @@ function shoot(row,col){
   else if(col===2) side=rand<0.5?'right':(rand<0.75?'center':'left');
   else             side=rand<0.33?'left':(rand<0.66?'center':'right');
 
-  const diveFrame=pickKeeperSpriteFrame(side,row,col);
-  const sideX={left:keeperRoot.position.x-GW*0.18, center:keeperRoot.position.x, right:keeperRoot.position.x+GW*0.18};
-  const lean=(side==='left'?0.85:(side==='right'?-0.85:(Math.random()<0.5?0.5:-0.5)));
+  const animName=pickKeeperAnimation(row,col);
+  const sideX={left:-GW*0.18, center:0, right:GW*0.18};
+  // FBX pose zaten lean içerdiğinden minimal root rotation
+  const lean=(side==='left'?0.10:(side==='right'?-0.10:0));
 
-  // saved hesabı kState'ten önce yapılıyor → animasyona geçiliyor
   const colMap={0:'left',1:'center',2:'right'};
   let saved=false;
   if(side===colMap[col]){
@@ -383,21 +422,17 @@ function shoot(row,col){
     else                 saved=Math.random()<0.58;
   } else saved=Math.random()<0.04;
 
-  kState={
-    phase:'dive',t:0,
-    sx:keeperRoot.position.x,tx:sideX[side],
-    srot:keeperRoot.rotation.z,trot:lean,
-    diveFrame, saved,
-  };
-  applySpriteFrame(keeperTex,diveFrame,CFG.keeperFrameCount);
+  kState={phase:'dive', t:0, sx:keeperRoot.position.x, tx:sideX[side], srot:keeperRoot.rotation.z, trot:lean, saved};
+  keeperFadeTo(animName);
 
-  playerAnim={phase:'run',t:0};
+  // Arda kick animasyonu
+  ardaFadeTo('kick', 0.12);
 
   const p0=ballMesh.position.clone();
   const p2=new THREE.Vector3(target.x,target.y,target.z);
   const mid=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
   mid.y+=2.05+Math.random()*0.35;
-  ballAnim={active:true,t:0,dur:0.58,p0,p1:mid,p2};
+  ballAnim={active:true, t:0, dur:0.58, p0, p1:mid, p2};
 
   setTimeout(()=>onLand(saved,target),560);
 }
@@ -405,18 +440,16 @@ function shoot(row,col){
 function onLand(saved,worldTarget){
   shots++;
   const dot=document.getElementById('dot-'+(shots-1));
-  const wvec=worldTarget.clone();
-  wvec.project(camera);
+  const wvec=worldTarget.clone(); wvec.project(camera);
   const px=(wvec.x*0.5+0.5)*W, py=(-wvec.y*0.5+0.5)*H;
-
   if(!saved){
-    goals++;document.getElementById('sGoal').textContent=goals;
-    if(dot)dot.classList.add('goal');
+    goals++; document.getElementById('sGoal').textContent=goals;
+    if(dot) dot.classList.add('goal');
     spawnParts(px,py); spawnConfetti(px,py-H*0.06);
     showResult(true);
   } else {
-    misses++;document.getElementById('sMiss').textContent=misses;
-    if(dot)dot.classList.add('miss');
+    misses++; document.getElementById('sMiss').textContent=misses;
+    if(dot) dot.classList.add('miss');
     showResult(false);
   }
   document.getElementById('sRemain').textContent=TOTAL-shots;
@@ -435,42 +468,35 @@ function showResult(isGoal){
     if(!assetsReady)return;
     ballMesh.position.set(0,BALL_R,0);
     ballAnim.active=false;
-    playerRoot.position.set(0,0,0.55);
-    playerRoot.rotation.set(0,0,0);
-    playerAnim={phase:'idle',t:0};
-    applySpriteFrame(playerTex,0,CFG.playerFrameCount);
-    kState={phase:'return',t:0,sx:keeperRoot.position.x,srot:keeperRoot.rotation.z,diveFrame:kState.diveFrame};
+    ardaFadeTo('idle', 0.3);
+    kState={phase:'return', t:0, sx:keeperRoot.position.x, srot:keeperRoot.rotation.z, saved:kState.saved};
   },1600);
 }
 
 function resetRoundVisuals(){
   if(!assetsReady)return;
   ballMesh.position.set(0,BALL_R,0);
-  ballMesh.scale.setScalar(1);
   ballAnim.active=false;
-  playerRoot.position.set(0,0,0.55);
-  playerRoot.rotation.set(0,0,0);
-  playerAnim={phase:'idle',t:0};
-  applySpriteFrame(playerTex,0,CFG.playerFrameCount);
+  ardaFadeTo('idle', 0.1);
 }
 
 function resetPositions(){
   resetRoundVisuals();
-  keeperRoot.position.set(0,KEEPER_WorldH/2,GZ+0.35);
-  keeperRoot.rotation.set(0,0,0);
-  applySpriteFrame(keeperTex,0,CFG.keeperFrameCount);
-  kState={phase:'idle',t:0,sx:0,tx:0,srot:0,trot:0,diveFrame:0};
+  if(ardaRoot){ ardaRoot.position.set(0,0,0.55); ardaRoot.rotation.set(0,Math.PI,0); }
+  if(keeperRoot){ keeperRoot.position.set(0,0,GZ+0.35); keeperRoot.rotation.set(0,0,0); }
+  keeperFadeTo('idle', 0.1);
+  kState={phase:'idle',t:0,sx:0,tx:0,srot:0,trot:0,saved:false};
 }
 
 function showFinal(){
   const pct=goals/TOTAL;
   const t=document.getElementById('fTrophy'),ti=document.getElementById('fTitle'),m=document.getElementById('fMsg');
   document.getElementById('fScore').textContent=goals+'/'+TOTAL+' GOL';
-  if(pct===1){t.textContent='🏆';ti.textContent='MUKEMMEL!';ti.style.color='#FFD700';m.textContent='Tum penaltilari gol yaptin!';}
+  if(pct===1)      {t.textContent='🏆';ti.textContent='MUKEMMEL!';ti.style.color='#FFD700';m.textContent='Tum penaltilari gol yaptin!';}
   else if(pct>=0.8){t.textContent='🥇';ti.textContent='HARIKA!';ti.style.color='#FFD700';m.textContent='Cok iyi!';}
   else if(pct>=0.6){t.textContent='⭐';ti.textContent='IYI!';ti.style.color='#4FC3F7';m.textContent='Guzel oyun!';}
   else if(pct>=0.4){t.textContent='💪';ti.textContent='DEVAM ET!';ti.style.color='#FF9800';m.textContent='Rovans ver!';}
-  else{t.textContent='😅';ti.textContent='OLMADI!';ti.style.color='#FF5252';m.textContent='Bu sefer kaleci kazandi!';}
+  else             {t.textContent='😅';ti.textContent='OLMADI!';ti.style.color='#FF5252';m.textContent='Bu sefer kaleci kazandi!';}
   document.getElementById('final').classList.add('show');
   gameActive=false;
   spawnConfetti(W/2,H*0.35);
@@ -486,10 +512,10 @@ function resetGame(){
   document.getElementById('final').classList.remove('show');
   document.getElementById('banner').style.display='';
   particles=[];confetti=[];
-  buildDots();resetPositions();
+  buildDots(); resetPositions();
 }
-
 window.resetGame=resetGame;
+
 window.shareResult=function(){
   const txt='Pusulabet Penalti: '+goals+'/'+TOTAL+' gol! @pusulasocial';
   if(tg&&tg.openTelegramLink)tg.openTelegramLink('https://t.me/share/url?url=https://t.me/pusulabetgame_bot/penalti&text='+encodeURIComponent(txt));
@@ -529,17 +555,17 @@ function drawFx(){
   fctx.globalAlpha=1;
 }
 
-canvas.addEventListener('mousemove',e=>{ if(gameActive&&canShoot) updateHover(e.clientX,e.clientY); });
+canvas.addEventListener('mousemove',e=>{if(gameActive&&canShoot)updateHover(e.clientX,e.clientY);});
 canvas.addEventListener('click',e=>{
   if(!gameActive||!canShoot)return;
   updateHover(e.clientX,e.clientY);
-  if(hoverCell.r>=0) shoot(hoverCell.r,hoverCell.c);
+  if(hoverCell.r>=0)shoot(hoverCell.r,hoverCell.c);
 });
 canvas.addEventListener('touchstart',e=>{
   if(!gameActive||!canShoot)return;
   const t=e.touches[0];
   updateHover(t.clientX,t.clientY);
-  if(hoverCell.r>=0){ e.preventDefault(); shoot(hoverCell.r,hoverCell.c); }
+  if(hoverCell.r>=0){e.preventDefault();shoot(hoverCell.r,hoverCell.c);}
 },{passive:false});
 canvas.addEventListener('touchmove',e=>{
   if(!gameActive||!canShoot)return;
@@ -551,160 +577,76 @@ function loop(ts){
   const dt=Math.min((ts-lastT)/1000,0.05); lastT=ts;
 
   if(!assetsReady){
-    renderer.render(scene,camera);
-    drawFx();
-    requestAnimationFrame(loop);
-    return;
+    renderer.render(scene,camera); drawFx();
+    requestAnimationFrame(loop); return;
   }
 
+  // —— AnimationMixer güncelle ——
+  if(ardaMixer)   ardaMixer.update(dt);
+  if(keeperMixer) keeperMixer.update(dt);
+
+  // —— Top Bezier hareketi ——
   if(ballAnim.active){
     ballAnim.t+=dt;
     const u=Math.min(ballAnim.t/ballAnim.dur,1);
     const e=easeInOut(u);
-    const p0=ballAnim.p0,p1=ballAnim.p1,p2=ballAnim.p2;
+    const {p0,p1,p2}=ballAnim;
     ballMesh.position.x=(1-e)*(1-e)*p0.x+2*(1-e)*e*p1.x+e*e*p2.x;
     ballMesh.position.y=(1-e)*(1-e)*p0.y+2*(1-e)*e*p1.y+e*e*p2.y;
     ballMesh.position.z=(1-e)*(1-e)*p0.z+2*(1-e)*e*p1.z+e*e*p2.z;
-    ballMesh.rotation.x+=14*dt;
-    ballMesh.rotation.z+=10*dt;
-    if(u>=1){ ballAnim.active=false; ballMesh.scale.setScalar(1); }
+    ballMesh.rotation.x+=14*dt; ballMesh.rotation.z+=10*dt;
+    if(u>=1){ballAnim.active=false;ballMesh.scale.setScalar(1);}
   }
 
-  if(playerAnim.phase==='run'){
-    playerAnim.t+=dt;
-    applySpriteFrame(playerTex,1,CFG.playerFrameCount);
-    if(playerAnim.t>0.28){ playerAnim.phase='prep'; playerAnim.t=0; }
-  } else if(playerAnim.phase==='prep'){
-    playerAnim.t+=dt;
-    applySpriteFrame(playerTex,2,CFG.playerFrameCount);
-    if(playerAnim.t>0.14){ playerAnim.phase='kick'; playerAnim.t=0; }
-  } else if(playerAnim.phase==='kick'){
-    playerAnim.t+=dt;
-    applySpriteFrame(playerTex,3,CFG.playerFrameCount);
-    if(playerAnim.t>0.22){
-      playerAnim.phase='idle';
-      applySpriteFrame(playerTex,0,CFG.playerFrameCount);
-    }
-  } else {
-    applySpriteFrame(playerTex,0,CFG.playerFrameCount);
-  }
-
+  // —— Kaleci root-grup pozisyon animasyonu ——
+  // FBX kemik pozu AnimationMixer tarafından yönetilir.
+  // Burada sadece dünya-uzayı konumu (slide + arc) kontrol edilir.
   if(kState.phase==='dive'){
     kState.t+=dt;
-    const T=0.42;
-    const u=Math.min(kState.t/T,1);
-    const e=easeOutCubic(u);
+    const T=0.42, u=Math.min(kState.t/T,1), e=easeOutCubic(u);
     keeperRoot.position.x=kState.sx+(kState.tx-kState.sx)*e;
-    // Kurtarışta daha sert eğim (kol tam uzanmış), kaçışta biraz daha az
-    const leanScale=kState.saved?1.25:0.85;
-    keeperRoot.rotation.z=kState.srot+(kState.trot*leanScale-kState.srot)*e;
-    keeperRoot.position.y=KEEPER_WorldH/2+Math.sin(u*Math.PI)*0.38*e;
-    applySpriteFrame(keeperTex,kState.diveFrame,CFG.keeperFrameCount);
+    keeperRoot.rotation.z=kState.srot+(kState.trot-kState.srot)*e;
+    keeperRoot.position.y=Math.sin(u*Math.PI)*0.15*e; // hafif zıplama yayı
     if(u>=1) kState.phase='hold';
+
   } else if(kState.phase==='hold'){
     kState.t+=dt;
     if(kState.saved){
-      // Kurtarış: sert eğimde sabit dur — elin uzandığı belli olsun
-      keeperRoot.position.y=KEEPER_WorldH/2+0.12;
+      keeperRoot.position.y=0.08; // kurtarışta biraz yukarıda bekle
     } else {
-      // Kaçış: yavaşça yere sürünür gibi dibe iner
-      const sag=Math.min(kState.t/0.4,1);
-      keeperRoot.position.y=KEEPER_WorldH/2+0.38*(1-sag)-0.08*sag;
-      keeperRoot.rotation.z=kState.trot*(1-sag*0.3);
+      const sag=Math.min(kState.t/0.35,1);
+      keeperRoot.position.y=0.15*(1-sag); // yere iner
     }
-    applySpriteFrame(keeperTex,kState.diveFrame,CFG.keeperFrameCount);
+
   } else if(kState.phase==='return'){
     kState.t+=dt;
-    const T=0.52;
-    const u=Math.min(kState.t/T,1);
-    const e=easeInOut(u);
+    const T=0.55, u=Math.min(kState.t/T,1), e=easeInOut(u);
     keeperRoot.position.x=kState.sx*(1-e);
     keeperRoot.rotation.z=kState.srot*(1-e);
-    keeperRoot.position.y=KEEPER_WorldH/2;
-    applySpriteFrame(keeperTex,0,CFG.keeperFrameCount);
+    keeperRoot.position.y=0;
     if(u>=1){
       kState.phase='idle';
-      keeperRoot.position.set(0,KEEPER_WorldH/2,GZ+0.35);
+      keeperRoot.position.set(0,0,GZ+0.35);
       keeperRoot.rotation.set(0,0,0);
-      applySpriteFrame(keeperTex,0,CFG.keeperFrameCount);
+      keeperFadeTo('idle');
       if(shots>=TOTAL) setTimeout(showFinal,80);
-      else{ canShoot=true; document.getElementById('banner').style.display=''; }
+      else{canShoot=true;document.getElementById('banner').style.display='';}
     }
+
   } else {
-    // Idle: sol-sağ sallantı — kaleci hazır ve tetikte görünür
-    const swayX=Math.sin(ts*0.0018)*0.14;
-    const swayY=KEEPER_WorldH/2+Math.abs(Math.sin(ts*0.0018))*0.03;
-    keeperRoot.position.x=swayX;
-    keeperRoot.position.y=swayY;
-    keeperRoot.rotation.z=swayX*-0.12; // hafif vücut eğimi
-    applySpriteFrame(keeperTex,0,CFG.keeperFrameCount);
+    // idle — AnimationMixer kaleci pozunu yönetiyor
+    // Hafif dünya-uzayı sallantısı (FBX idle animasyonuna ek)
+    keeperRoot.position.x=Math.sin(ts*0.0014)*0.05;
+    keeperRoot.position.y=0;
   }
 
-  billboardSprite(playerRoot);
-  billboardSprite(keeperRoot);
-
-  renderer.render(scene,camera);
-  drawFx();
+  renderer.render(scene,camera); drawFx();
   requestAnimationFrame(loop);
 }
 
-/**
- * @param {string} url
- * @param {string} label konsol log icin
- * @param {{sheet?:boolean}} opt sheet=false → sadece SRGB (or. tek kare ball.png)
- */
-function loadTextureAsset(url,label,opt={}){
-  const useSheet=opt.sheet!==false;
-  return new Promise((resolve,reject)=>{
-    textureLoader.load(
-      url,
-      (tex)=>{
-        try{
-          if(useSheet) prepareSheetTexture(tex);
-          else{
-            tex.colorSpace=THREE.SRGBColorSpace;
-            tex.needsUpdate=true;
-          }
-          resolve(tex);
-        }catch(e){
-          console.error('[TextureLoader] prepareSheet/hazirlik hatasi',label,url,e);
-          reject(e);
-        }
-      },
-      undefined,
-      (evt)=>{
-        console.error('[TextureLoader] yukleme basarisiz',label,url,evt);
-        reject(new Error(typeof evt?.message==='string'?evt.message:('Yuklenemedi: '+label)));
-      }
-    );
-  });
-}
-
 function addBackgroundIfNeeded(bgT){
-  if(bgMesh) return;
-  /**
-   * Kamera: (0, 0.85, 5.5) → bakış (0, 1.5, -11), FOV=38°
-   * bg plane: z=-19 (kameradan 24.5 birim uzakta)
-   *
-   * z=-19'da kamera bakış y'si:
-   *   yön = normalize(0, 0.65, -16.5) → dy_norm ≈ 0.0394
-   *   y_look = 0.85 + 0.0394 * 24.5 ≈ 1.81 m
-   *
-   * Görüş yüksekliği z=-19'da:
-   *   2 * 24.5 * tan(19°) ≈ 16.88 m
-   *
-   * bg.png (1536×1024, 3:2) → bgH=24, bgW=36 (oran korunuyor)
-   *   dikey kaplama: 24/16.88 = 1.42× ✓
-   *
-   * bg.png'de kale yaklaşık alttan %40:
-   *   bg bottom = bgCenterY - 12 = 4.2 - 12 = -7.8
-   *   %40 noktası = -7.8 + 0.4*24 = 1.8 ≈ y_look ✓
-   *
-   * Portrait (9:16) için bgW=36 tam ortayı gösterir — sorun yok.
-   */
-  const bgH=24, bgW=36;       // 36/24=1.5 → bg.png 3:2 oran
-  const bgZ=-19;
-  const bgCenterY=4.2;        // kamera bakışını kale bandına hizalar
+  if(bgMesh)return;
+  const bgH=24,bgW=36,bgZ=-19,bgCenterY=4.2;
   bgMesh=new THREE.Mesh(
     new THREE.PlaneGeometry(bgW,bgH),
     new THREE.MeshBasicMaterial({map:bgT,depthWrite:false,depthTest:false})
@@ -714,68 +656,150 @@ function addBackgroundIfNeeded(bgT){
   scene.add(bgMesh);
 }
 
-async function boot(){
-  console.log('[assets] CFG.ASSETS',CFG.ASSETS);
-  try{
-    const [ballT,pT,kT]=await Promise.all([
-      loadTextureAsset(CFG.ASSETS.ball,'ball',{sheet:false}),
-      loadTextureAsset(CFG.ASSETS.player,'player',{sheet:true}),
-      loadTextureAsset(CFG.ASSETS.keeper,'keeper',{sheet:true}),
-    ]);
-    console.log('[assets] ball, player, keeper textures OK');
+const textureLoader=new THREE.TextureLoader();
+textureLoader.setCrossOrigin('anonymous');
 
-    // roughness↓ → top daha parlak ve net görünür
-    const ballMat=new THREE.MeshStandardMaterial({map:ballT,roughness:0.35,metalness:0.05,envMapIntensity:0.5});
-    ballMesh=new THREE.Mesh(new THREE.SphereGeometry(BALL_R,32,32),ballMat);
+// ——————————————————————————————————————————————
+// boot() — FBX karakterleri yükle, sahneyi hazırla
+// ——————————————————————————————————————————————
+async function boot(){
+  console.log('[boot] FBX karakter sistemi başlatılıyor...');
+  try {
+
+    // —— 1. Top texture ——
+    const ballT=await new Promise((res,rej)=>textureLoader.load(CFG.ASSETS.ball,res,undefined,rej));
+    ballT.colorSpace=THREE.SRGBColorSpace;
+    ballMesh=new THREE.Mesh(
+      new THREE.SphereGeometry(BALL_R,32,32),
+      new THREE.MeshStandardMaterial({map:ballT,roughness:0.35,metalness:0.05})
+    );
     ballMesh.castShadow=true;
     ballMesh.position.set(0,BALL_R,0);
     scene.add(ballMesh);
+    console.log('[boot] Top OK');
 
-    playerTex=pT.clone();
-    prepareSheetTexture(playerTex);
-    playerTex.userData={framePxW:CFG.playerFrameWidth}; // UV inset için
-    applySpriteFrame(playerTex,0,CFG.playerFrameCount);
-    playerMat=new THREE.MeshBasicMaterial({map:playerTex,transparent:true,depthWrite:false,side:THREE.DoubleSide});
-    const playerPlane=new THREE.Mesh(new THREE.PlaneGeometry(PLAYER_WorldW,PLAYER_WorldH),playerMat);
-    playerPlane.position.y=PLAYER_WorldH/2;
-    playerRoot=new THREE.Group();
-    playerRoot.add(playerPlane);
-    playerRoot.position.set(0,0,0.55);
-    playerRoot.renderOrder=10;
-    scene.add(playerRoot);
+    // —— 2. Tüm FBX paralel yükle ——
+    const [
+      ardaKickFbx, ardaIdleFbx,
+      keeperIdleFbx,
+      keeperDiveLFbx, keeperDiveRFbx,
+      keeperSaveLLFbx, keeperSaveLRFbx,
+      keeperStepLFbx, keeperStepRFbx,
+    ] = await Promise.all([
+      loadFBX(CFG.ASSETS.fbx.arda_kick),
+      loadFBX(CFG.ASSETS.fbx.arda_idle),
+      loadFBX(CFG.ASSETS.fbx.keeper_idle),
+      loadFBX(CFG.ASSETS.fbx.keeper_dive_left),
+      loadFBX(CFG.ASSETS.fbx.keeper_dive_right),
+      loadFBX(CFG.ASSETS.fbx.keeper_save_low_left),
+      loadFBX(CFG.ASSETS.fbx.keeper_save_low_right),
+      loadFBX(CFG.ASSETS.fbx.keeper_sidestep_left),
+      loadFBX(CFG.ASSETS.fbx.keeper_sidestep_right),
+    ]);
+    console.log('[boot] Tüm FBX yüklendi ✓');
 
-    keeperTex=kT.clone();
-    prepareSheetTexture(keeperTex);
-    keeperTex.userData={framePxW:CFG.keeperFrameWidth}; // UV inset için
-    applySpriteFrame(keeperTex,0,CFG.keeperFrameCount);
-    keeperMat=new THREE.MeshBasicMaterial({map:keeperTex,transparent:true,depthWrite:false,side:THREE.DoubleSide});
-    const keeperPlane=new THREE.Mesh(new THREE.PlaneGeometry(KEEPER_WorldW,KEEPER_WorldH),keeperMat);
-    keeperPlane.position.y=0;
+    // ——————————————————————————————
+    // Arda Güler kurulumu
+    // ——————————————————————————————
+    normalizeFBX(ardaKickFbx, CFG.ARDA_HEIGHT);
+    ardaKickFbx.traverse(c=>{
+      if(c.isMesh){c.castShadow=true;c.receiveShadow=true;c.frustumCulled=false;}
+    });
+    ardaRoot=new THREE.Group();
+    ardaRoot.add(ardaKickFbx);
+    ardaRoot.position.set(0,0,0.55);
+    // rotation.y=Math.PI: Mixamo +Z yönü → Math.PI ile kaleye bakıyor.
+    // Eğer arka yüz görünüyorsa rotation.y=0 dene.
+    ardaRoot.rotation.y=Math.PI;
+    ardaRoot.renderOrder=10;
+    scene.add(ardaRoot);
+
+    ardaMixer=new THREE.AnimationMixer(ardaKickFbx);
+
+    // Kick animasyonu (aynı FBX'ten)
+    if(ardaKickFbx.animations.length>0){
+      const kickClip=ardaKickFbx.animations[0];
+      removePositionTracks(kickClip); kickClip.name='kick';
+      ardaActions.kick=ardaMixer.clipAction(kickClip);
+      ardaActions.kick.setLoop(THREE.LoopOnce,1);
+      ardaActions.kick.clampWhenFinished=true;
+    } else console.warn('[boot] arda kick.fbx animasyon içermiyor');
+
+    // Idle animasyonu (farklı FBX, aynı iskelet varsayımı)
+    if(ardaIdleFbx.animations.length>0){
+      const idleClip=ardaIdleFbx.animations[0];
+      removePositionTracks(idleClip); idleClip.name='arda_idle';
+      ardaActions.idle=ardaMixer.clipAction(idleClip);
+      ardaActions.idle.setLoop(THREE.LoopRepeat,Infinity);
+      ardaActions.idle.play();
+      ardaCurrentAction=ardaActions.idle;
+    } else console.warn('[boot] arda idle.fbx animasyon içermiyor');
+
+    // ——————————————————————————————
+    // Kaleci kurulumu
+    // ——————————————————————————————
+    normalizeFBX(keeperIdleFbx, CFG.KEEPER_HEIGHT);
+    keeperIdleFbx.traverse(c=>{
+      if(c.isMesh){c.castShadow=true;c.receiveShadow=true;c.frustumCulled=false;}
+    });
     keeperRoot=new THREE.Group();
-    keeperRoot.add(keeperPlane);
-    keeperRoot.position.set(0,KEEPER_WorldH/2,GZ+0.35);
+    keeperRoot.add(keeperIdleFbx);
+    keeperRoot.position.set(0,0,GZ+0.35);
+    // rotation.y=0: Mixamo +Z → kameraya bakıyor.
+    // Eğer sırtı görünüyorsa Math.PI dene.
+    keeperRoot.rotation.y=0;
     keeperRoot.renderOrder=8;
     scene.add(keeperRoot);
 
-    assetsReady=true;
-    console.log('[assets] assetsReady=true (player, keeper, ball sahneye eklendi)');
-    size();
-    buildDots();
-    resetPositions();
+    keeperMixer=new THREE.AnimationMixer(keeperIdleFbx);
 
-    try{
-      const bgT=await loadTextureAsset(CFG.ASSETS.bg,'bg',{sheet:false});
-      addBackgroundIfNeeded(bgT);
-      console.log('[assets] bg OK');
-    }catch(bgErr){
-      console.error('[assets] bg yuklenemedi (oyun devam eder)',bgErr);
+    // Yardımcı: FBX'ten clip ayıkla ve keeperActions'a ekle
+    function addKeeperClip(fbx, name, loop=THREE.LoopOnce){
+      if(!fbx.animations.length){console.warn('[boot] Animasyon yok:', name);return;}
+      const clip=fbx.animations[0];
+      removePositionTracks(clip); clip.name=name;
+      const action=keeperMixer.clipAction(clip);
+      action.setLoop(loop, loop===THREE.LoopOnce?1:Infinity);
+      if(loop===THREE.LoopOnce) action.clampWhenFinished=true;
+      keeperActions[name]=action;
     }
-  }catch(err){
-    console.error('[boot] cekirdek asset (ball/player/keeper) yuklemesi basarisiz',err);
-    const msg='assets/ball.png, assets/arda.png, assets/keeper.png gerekli. index.html ile ayni kok. Hata: '+String(err?.message||err);
+
+    addKeeperClip(keeperIdleFbx,  'idle',           THREE.LoopRepeat);
+    addKeeperClip(keeperDiveLFbx,  'dive_left');
+    addKeeperClip(keeperDiveRFbx,  'dive_right');
+    addKeeperClip(keeperSaveLLFbx, 'save_low_left');
+    addKeeperClip(keeperSaveLRFbx, 'save_low_right');
+    addKeeperClip(keeperStepLFbx,  'sidestep_left');
+    addKeeperClip(keeperStepRFbx,  'sidestep_right');
+
+    // Idle ile başla
+    if(keeperActions.idle){
+      keeperActions.idle.play();
+      keeperCurrentAction=keeperActions.idle;
+    }
+
+    // ——————————————————————————————
+    assetsReady=true;
+    console.log('[boot] assetsReady=true — FBX karakterler sahneye eklendi ✓');
+    console.log('[boot] Arda actions:', Object.keys(ardaActions).filter(k=>ardaActions[k]));
+    console.log('[boot] Keeper actions:', Object.keys(keeperActions).filter(k=>keeperActions[k]));
+    size(); buildDots(); resetPositions();
+
+    // —— Arkaplan (gecikirse oyun zaten başlar) ——
+    try{
+      const bgT=await new Promise((res,rej)=>textureLoader.load(CFG.ASSETS.bg,res,undefined,rej));
+      bgT.colorSpace=THREE.SRGBColorSpace;
+      addBackgroundIfNeeded(bgT);
+      console.log('[boot] bg OK');
+    } catch(bgErr){
+      console.error('[boot] bg yüklenemedi (oyun devam eder)',bgErr);
+    }
+
+  } catch(err){
+    console.error('[boot] Kritik yükleme hatası',err);
     const d=document.createElement('div');
     d.style.cssText='position:fixed;bottom:12px;left:12px;right:12px;max-width:520px;margin:auto;background:#1a1a1a;color:#ffb74d;padding:12px 16px;border-radius:10px;font:14px/1.4 sans-serif;z-index:9999;border:1px solid #444';
-    d.textContent=msg;
+    d.textContent='FBX yükleme hatası: '+String(err?.message||err)+' — assets/ klasörünü kontrol edin.';
     document.body.appendChild(d);
   }
 }
