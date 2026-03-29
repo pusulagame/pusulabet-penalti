@@ -57,14 +57,14 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
 </head>
 <body>
 <div id="wrap">
-  <canvas id="c"></canvas>
-  <canvas id="fx"></canvas>
+<canvas id="c"></canvas>
+<canvas id="fx"></canvas>
 </div>
 <div id="ui">
   <div id="hud">
     <div class="hb"><span class="hl">GOL</span><div class="hv g" id="sGoal">0</div></div>
     <div class="hb"><span class="hl">KALAN</span><div class="hv" id="sRemain">5</div></div>
-    <div class="hb"><span class="hl">KACTI</span><div class="hv r" id="sMiss">0</div></div>
+    <div class="hb"><span class="hl">KAÇTI</span><div class="hv r" id="sMiss">0</div></div>
   </div>
   <div id="dots"></div>
   <div id="banner">⚽ KALEYE DOKUN — HEDEF SEC!</div>
@@ -94,536 +94,681 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
       <div class="srules">
         <div class="ri"><div class="ric">⚽</div><span class="rit">5 Atis</span></div>
         <div class="ri"><div class="ric">🥅</div><span class="rit">9 Kose</span></div>
-        <div class="ri"><div class="ric">✨</div><span class="rit">3D</span></div>
+        <div class="ri"><div class="ric">✨</div><span class="rit">Sprite</span></div>
       </div>
       <button type="button" class="btnP" id="btnStart" style="font-size:26px;padding:16px;pointer-events:all;">⚽ BASLAT</button>
     </div>
   </div>
 </div>
 
-<script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
-</script>
 <script type="module">
-import * as THREE from 'three';
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
-// ── ASSET YOLLARI ──
-const BASE = (()=>{
-  const p = window.location.pathname;
-  const dir = p.endsWith('/') ? p : p.slice(0, p.lastIndexOf('/')+1);
-  return window.location.origin + dir + 'assets/';
-})();
+/** HTML dosyasinin bulundugu klasore gore assets/ — GitHub Pages (alt yol) guvenli */
+function resolveAsset(relPath){
+  const baseDir=new URL('.', import.meta.url).href;
+  return new URL(relPath, baseDir).href;
+}
 
-// ── SABITLER ──
-const TOTAL=5, BALL_R=0.11;
-const GW=11.5, GH=3.0, GZ=-11;
-const GOAL_YOF=1.8;
-// FBX Mixamo modelleri genellikle 100x buyuk gelir (cm cinsinden)
-// normalizeChar ile hedef boya scale edilir
-const ARDA_TARGET_H   = 1.82;  // metre — kamera uzakligi ile kucuk gorunur
-const KEEPER_TARGET_H = 1.90;  // metre — kale onunde buyuk gorunmeli
+// —— Asset / sprite config ——
+const CFG = {
+  ASSETS: {
+    bg: resolveAsset('assets/bg.png'),
+    ball: resolveAsset('assets/ball.png'),
+    player: resolveAsset('assets/arda.png'),
+    keeper: resolveAsset('assets/keeper.png'),
+  },
+  playerFrameWidth: 256,
+  playerFrameHeight: 384,
+  playerFrameCount: 4,
+  keeperFrameWidth: 320,
+  keeperFrameHeight: 384,
+  keeperFrameCount: 5,
+};
 
-const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡"];
-const MMSG=["Kaleci tuttu! 🧤","Az kaldi! 😅","Direkce carpti!","Kacti! 😬","Kaleci sezdi! 👀"];
-const CC=['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'];
+/** Yatay sprite sheet: tek satir, repeat.x = 1/n, offset.x = i/n */
+function applySpriteFrame(texture, frameIndex, frameCount){
+  const i=Math.max(0,Math.min(frameCount-1,frameIndex|0));
+  texture.wrapS=THREE.ClampToEdgeWrapping;
+  texture.wrapT=THREE.ClampToEdgeWrapping;
+  texture.repeat.set(1/frameCount,1);
+  texture.offset.set(i/frameCount,0);
+  texture.needsUpdate=true;
+}
 
-// ── TELEGRAM ──
+function prepareSheetTexture(tex){
+  tex.colorSpace=THREE.SRGBColorSpace;
+  tex.minFilter=THREE.LinearMipmapLinearFilter;
+  tex.magFilter=THREE.LinearFilter;
+  tex.generateMipmaps=true;
+}
+
+/** Tek TextureLoader — tum asset yuklemeleri */
+const textureLoader=new THREE.TextureLoader();
+textureLoader.setCrossOrigin('anonymous');
+
 let tg=null;
-try{tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch(e){}
+try{tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();tg.setHeaderColor('#061208');}}catch(e){}
 
-// ── THREE.JS ──
 const canvas=document.getElementById('c');
 const fx=document.getElementById('fx');
 const fctx=fx.getContext('2d');
+
 let W=innerWidth,H=innerHeight;
+let renderer, camera;
+
+function size(){
+  W=innerWidth; H=innerHeight;
+  canvas.width=W; canvas.height=H;
+  fx.width=W; fx.height=H;
+  if(renderer) renderer.setSize(W,H,false);
+  if(camera) camera.aspect=W/H, camera.updateProjectionMatrix();
+}
+addEventListener('resize',size);
+
+const DIST=11;
+const GW=7.32, GH=2.44;
+const GZ=-DIST;
+const BALL_R=0.11;
 
 const scene=new THREE.Scene();
-const cam=new THREE.PerspectiveCamera(38,W/H,0.1,200);
-cam.position.set(0,1.2,6.0);
-cam.lookAt(0,1.5,GZ);
+// background null → renderer canvas alpha ile body CSS'i göster (bg yüklenene kadar)
+// bg.png yüklenince plane tam ekranı kaplar
+scene.background=null;
+scene.fog=null; // fog kaldırıldı → keeper ve kale net görünsün
 
-const rdr=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
-rdr.setPixelRatio(Math.min(devicePixelRatio,1.5));
-rdr.outputColorSpace=THREE.SRGBColorSpace;
-rdr.toneMapping=THREE.ACESFilmicToneMapping;
-rdr.toneMappingExposure=1.05;
+// FOV=38° (biraz dar → daha az distorsiyon, daha sinematik)
+// Kamera ceza noktasının biraz arkasında ve alçakta
+// lookAt: kale orta-üstüne bakıyor
+camera=new THREE.PerspectiveCamera(38,W/H,0.1,200);
+camera.position.set(0,0.85,5.5);
+camera.lookAt(0,1.5,GZ);
 
-function resize(){
-  W=innerWidth;H=innerHeight;
-  canvas.width=W;canvas.height=H;
-  fx.width=W;fx.height=H;
-  rdr.setSize(W,H,false);
-  cam.aspect=W/H;
-  cam.fov=H>W?55:38;
-  cam.updateProjectionMatrix();
-}
-resize();
-addEventListener('resize',resize);
+// alpha:true → scene.background=null ile bg.png plane'e geçiş görünmez
+renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(W,H,false);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.05;
 
-// Isiklar
-scene.add(new THREE.AmbientLight(0xffffff,0.8));
+// Ambient biraz daha yüksek → top ve zemin daha parlak
+const amb=new THREE.AmbientLight(0xffffff,0.75);
+scene.add(amb);
 const sun=new THREE.DirectionalLight(0xfff5e6,1.0);
 sun.position.set(-8,22,12);
+sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.near=1; sun.shadow.camera.far=60;
+sun.shadow.camera.left=-25; sun.shadow.camera.right=25;
+sun.shadow.camera.top=25; sun.shadow.camera.bottom=-25;
 scene.add(sun);
-const fill=new THREE.DirectionalLight(0xaaccff,0.25);
+const fill=new THREE.DirectionalLight(0xaaccff,0.22);
 fill.position.set(10,8,-5);
 scene.add(fill);
 
-// Zemin
-const gnd=new THREE.Mesh(
+// —— Yer ——
+// Transparan → bg.png tüm ekranı kaplar, 3D ground renk geçişi yok
+// receiveShadow:true korunuyor (top gölgesi çalışmaya devam eder)
+const ground=new THREE.Mesh(
   new THREE.PlaneGeometry(120,120),
-  new THREE.MeshStandardMaterial({transparent:true,opacity:0,depthWrite:false})
+  new THREE.MeshStandardMaterial({
+    color:0x3d7228,roughness:0.9,metalness:0,
+    transparent:true,opacity:0.0,
+    depthWrite:false
+  })
 );
-gnd.rotation.x=-Math.PI/2;
-scene.add(gnd);
+ground.rotation.x=-Math.PI/2;
+ground.receiveShadow=true;
+scene.add(ground);
 
-// Penalti noktasi
-const wm=new THREE.MeshBasicMaterial({color:0xffffff});
-const sp=new THREE.Mesh(new THREE.CircleGeometry(0.22,32),wm);
-sp.rotation.x=-Math.PI/2;sp.position.set(0,0.02,0);scene.add(sp);
-const ln=new THREE.Mesh(new THREE.PlaneGeometry(9.15,0.12),wm);
-ln.rotation.x=-Math.PI/2;ln.position.set(0,0.02,-5.5);scene.add(ln);
+const lineMat=new THREE.MeshBasicMaterial({color:0xffffff});
+const spot=new THREE.Mesh(new THREE.CircleGeometry(0.22,32),lineMat);
+spot.rotation.x=-Math.PI/2;
+spot.position.set(0,0.02,0);
+scene.add(spot);
+const pa=new THREE.Mesh(new THREE.PlaneGeometry(9.15,0.12),lineMat);
+pa.rotation.x=-Math.PI/2;
+pa.position.set(0,0.02,-5.5);
+scene.add(pa);
 
-// Kale plane (raycast)
+const postMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.35,metalness:0.1});
+const pw=0.11, ph=GH;
+const leftP=new THREE.Mesh(new THREE.BoxGeometry(pw,ph,pw),postMat);
+leftP.position.set(-GW/2,ph/2,GZ);
+leftP.castShadow=true;
+const rightP=leftP.clone();
+rightP.position.set(GW/2,ph/2,GZ);
+const bar=new THREE.Mesh(new THREE.BoxGeometry(GW+pw,pw,pw),postMat);
+bar.position.set(0,GH,GZ);
+bar.castShadow=true;
+scene.add(leftP,rightP,bar);
+
+const net=new THREE.Mesh(
+  new THREE.PlaneGeometry(GW*0.98,GH*0.96),
+  new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.15,side:THREE.DoubleSide,depthWrite:false})
+);
+net.position.set(0,GH/2,GZ+0.06);
+scene.add(net);
+
 const goalPlane=new THREE.Plane(new THREE.Vector3(0,0,1),-GZ);
-const rc=new THREE.Raycaster();
+const raycaster=new THREE.Raycaster();
 const ndc=new THREE.Vector2();
-const hit=new THREE.Vector3();
+const hitPt=new THREE.Vector3();
+const camPos=new THREE.Vector3();
 
-// Highlight meshler
-const hiG=new THREE.Group();scene.add(hiG);
-(()=>{
-  const cw=GW/3,ch=GH/3;
+function worldFromCell(row,col){
+  const cw=GW/3, ch=GH/3;
+  const x=-GW/2+cw*(col+0.5);
+  const y=ch*((2-row)+0.5);
+  return new THREE.Vector3(x,y,GZ+0.02);
+}
+
+let hoverCell={r:-1,c:-1};
+const hiGroup=new THREE.Group();
+scene.add(hiGroup);
+function buildHiMeshes(){
+  while(hiGroup.children.length) hiGroup.remove(hiGroup.children[0]);
+  const cw=GW/3, ch=GH/3;
+  const mat=new THREE.MeshBasicMaterial({color:0xffd700,transparent:true,opacity:0,depthWrite:false});
   for(let r=0;r<3;r++) for(let c=0;c<3;c++){
-    const m=new THREE.Mesh(
-      new THREE.PlaneGeometry(cw-0.12,ch-0.12),
-      new THREE.MeshBasicMaterial({color:0xffd700,transparent:true,opacity:0,depthWrite:false})
-    );
-    m.position.set(-GW/2+cw*(c+0.5),GOAL_YOF+ch*(2-r)+ch/2,GZ+0.04);
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(cw-0.12,ch-0.12),mat.clone());
+    m.position.set(-GW/2+cw*(c+0.5),ch*(2-r)+ch/2,GZ+0.04);
     m.userData={r,c};
-    hiG.add(m);
+    hiGroup.add(m);
   }
-})();
+}
+buildHiMeshes();
+const hiMeshes=hiGroup.children;
 
-function setHi(r,c,op){
-  hiG.children.forEach(m=>{m.material.opacity=(r>=0&&m.userData.r===r&&m.userData.c===c)?op:0;});
+// —— Referanslar (yukleme sonrasi dolar) ——
+let ballMesh, playerRoot, playerMat, playerTex;
+let keeperRoot, keeperMat, keeperTex;
+let bgMesh;
+
+// Player: 1.78→1.18 (%34 küçük) — kale görünür, keeper seçilir
+// mesafe=4.95m, FOV=38° → ekranın ~%34'ü dikey
+const PLAYER_WorldH=1.18;
+const PLAYER_WorldW=PLAYER_WorldH*(CFG.playerFrameWidth/CFG.playerFrameHeight);
+// Keeper: 1.72→2.55 (%48 büyük) — 16.15m uzakta, ekranın ~%23'ü (kale üstüne biraz taşar, görünürlük ↑)
+const KEEPER_WorldH=2.55;
+const KEEPER_WorldW=KEEPER_WorldH*(CFG.keeperFrameWidth/CFG.keeperFrameHeight);
+
+function easeOutCubic(t){return 1-Math.pow(1-t,3);}
+function easeInOut(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+
+/**
+ * Kaleci frame: 0 idle, 1 dive_left, 2 dive_right, 3 jump_up_left, 4 jump_up_right
+ * AI side + sut bolgesine gore (gerekirse 1/2 swap)
+ */
+function pickKeeperSpriteFrame(side, row, col){
+  if(row===0){
+    if(col===0) return 3;
+    if(col===2) return 4;
+    return Math.random()<0.5?3:4;
+  }
+  if(side==='left') return 1;
+  if(side==='right') return 2;
+  return Math.random()<0.5?1:2;
 }
 
-function worldCell(row,col){
-  const cw=GW/3,ch=GH/3;
-  return new THREE.Vector3(-GW/2+cw*(col+0.5),GOAL_YOF+ch*((2-row)+0.5),GZ+0.02);
+/** Oyuncu: idle(0) run(1) prep(2) kick(3) */
+let playerAnim={phase:'idle',t:0};
+
+let kState={phase:'idle',t:0,sx:0,tx:0,srot:0,trot:0,diveFrame:0};
+
+let ballAnim={active:false,t:0,dur:0.62,p0:null,p1:null,p2:null};
+
+const TOTAL=5;
+const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡","Aglari salladi! 🌊"];
+const MMSG=["Kaleci tuttu! 🧤","Az kaldi! 😅","Direkce carpti!","Kacti! 😬","Kaleci sezdi! 👀","Kurtaris! 🙌"];
+const COLORS=['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'];
+
+let goals=0,misses=0,shots=0,gameActive=false,canShoot=true;
+let particles=[],confetti=[];
+let assetsReady=false;
+
+function startGame(){
+  const st=document.getElementById('start');
+  if(st) st.style.display='none';
+  gameActive=true;
+  canShoot=true;
 }
+window.startGame=startGame;
+document.getElementById('btnStart')?.addEventListener('click',(e)=>{ e.preventDefault(); startGame(); });
 
-// ── FBX YUKLEME ──
-const fbxLoader=new FBXLoader();
-
-function loadFBX(url){
-  return new Promise(resolve=>{
-    fbxLoader.load(url,obj=>resolve(obj),undefined,err=>{
-      console.warn('[FBX] Yuklenemedi:',url,err?.message||err);
-      resolve(null);
-    });
+function setHiOpacity(r,c,op){
+  hiMeshes.forEach(m=>{
+    const u=m.userData;
+    m.material.opacity=(r>=0&&u.r===r&&u.c===c)?op:0;
   });
 }
 
-// FBX modelini normalize et: hedef yukseklige scale, ayaklari y=0'a getir
-function normalizeChar(obj, targetH){
-  // FBX Mixamo modelleri cm cinsinden gelir (100x buyuk)
-  // Once bbox olc, sonra scale ayarla
-  obj.updateMatrixWorld(true);
-  const box=new THREE.Box3().setFromObject(obj);
-  const sz=new THREE.Vector3();
-  box.getSize(sz);
-  if(sz.y<0.001){console.warn('normalizeChar: sifir yukseklik');return;}
-  const s=targetH/sz.y;
-  obj.scale.setScalar(s);
-  obj.updateMatrixWorld(true);
-  // Ayaklari y=0'a getir
-  const b2=new THREE.Box3().setFromObject(obj);
-  obj.position.y-=b2.min.y;
+function updateHover(clientX,clientY){
+  if(!gameActive||!canShoot){ setHiOpacity(-1,-1,0); return; }
+  ndc.x=(clientX/W)*2-1;
+  ndc.y=-(clientY/H)*2+1;
+  raycaster.setFromCamera(ndc,camera);
+  if(!raycaster.ray.intersectPlane(goalPlane,hitPt)){ setHiOpacity(-1,-1,0); hoverCell={r:-1,c:-1}; return; }
+  if(hitPt.x<-GW/2||hitPt.x>GW/2||hitPt.y<0||hitPt.y>GH){ setHiOpacity(-1,-1,0); hoverCell={r:-1,c:-1}; return; }
+  const cw=GW/3, ch=GH/3;
+  const c=Math.min(2,Math.max(0,Math.floor((hitPt.x+GW/2)/cw)));
+  const r=2-Math.min(2,Math.max(0,Math.floor(hitPt.y/ch)));
+  hoverCell={r,c};
+  setHiOpacity(r,c,0.28);
 }
 
-// ── KARAKTER YAPISI ──
-// Her FBX dosyasi kendi model+mixer+action ikilisiyle calisir
-// Animasyon gecisi: onceki model gizlenir, yeni model gosterilir
-
-let arda=null;   // {models:{idle,kick}, mixers:{idle,kick}, actions:{idle,kick}, current}
-let keeper=null; // {models:{idle,dive_left,...}, mixers:{...}, actions:{...}, current}
-
-function playAnim(ch, name){
-  if(!ch || !ch.actions[name]) return;
-  if(ch.current===name) return;
-
-  // Onceki modeli gizle
-  const prev=ch.models[ch.current];
-  if(prev) prev.visible=false;
-
-  // Onceki action'i durdur
-  const prevAct=ch.actions[ch.current];
-  if(prevAct) prevAct.stop();
-
-  // Yeni modeli goster
-  const next=ch.models[name];
-  if(next) next.visible=true;
-
-  // Yeni action'i baslat
-  ch.current=name;
-  ch.actions[name].reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
-}
-
-function tickChar(ch, dt){
-  if(!ch) return;
-  Object.values(ch.mixers).forEach(mx=>mx.update(dt));
-}
-
-// ── OYUN DURUMU ──
-let ballMesh=null;
-let goals=0,misses=0,shots=0,gameActive=false,canShoot=true,ready=false;
-let hoverCell={r:-1,c:-1};
-let parts=[],confs=[];
-let ballAnim={on:false,t:0,dur:0.55,p0:null,p1:null,p2:null};
-let kAnim={phase:'idle',t:0,sx:0,tx:0};
-
-function easeOut(t){return 1-Math.pow(1-t,3);}
-function easeIO(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
-
-// ── HOVER & SHOOT ──
-function hover(cx,cy){
-  if(!gameActive||!canShoot){setHi(-1,-1,0);return;}
-  ndc.x=(cx/W)*2-1;ndc.y=-(cy/H)*2+1;
-  rc.setFromCamera(ndc,cam);
-  if(!rc.ray.intersectPlane(goalPlane,hit)){setHi(-1,-1,0);hoverCell={r:-1,c:-1};return;}
-  if(hit.x<-GW/2||hit.x>GW/2||hit.y<GOAL_YOF||hit.y>GOAL_YOF+GH){
-    setHi(-1,-1,0);hoverCell={r:-1,c:-1};return;
-  }
-  const cw=GW/3,ch=GH/3;
-  const col=Math.min(2,Math.max(0,Math.floor((hit.x+GW/2)/cw)));
-  const row=2-Math.min(2,Math.max(0,Math.floor((hit.y-GOAL_YOF)/ch)));
-  hoverCell={r:row,c:col};setHi(row,col,0.28);
-}
-
-function pickKAnim(side,row){
-  if(side==='center') return Math.random()<0.5?'sidestep_left':'sidestep_right';
-  if(row===2) return side==='left'?'save_low_left':'save_low_right';
-  return side==='left'?'dive_left':'dive_right';
+function billboardSprite(group){
+  camera.getWorldPosition(camPos);
+  group.lookAt(camPos.x,group.position.y,camPos.z);
 }
 
 function shoot(row,col){
-  if(!ready||!canShoot||!gameActive) return;
+  if(!assetsReady||!ballMesh||!canShoot||!gameActive)return;
   canShoot=false;
   document.getElementById('banner').style.display='none';
-  setHi(-1,-1,0);
+  setHiOpacity(-1,-1,0);
 
-  const target=worldCell(row,col);
+  const target=worldFromCell(row,col);
   const rand=Math.random();
   let side;
   if(col===0)      side=rand<0.5?'left':(rand<0.75?'center':'right');
   else if(col===2) side=rand<0.5?'right':(rand<0.75?'center':'left');
   else             side=rand<0.33?'left':(rand<0.66?'center':'right');
 
-  const cm={0:'left',1:'center',2:'right'};
+  const diveFrame=pickKeeperSpriteFrame(side,row,col);
+  const sideX={left:keeperRoot.position.x-GW*0.18, center:keeperRoot.position.x, right:keeperRoot.position.x+GW*0.18};
+  const lean=(side==='left'?0.85:(side==='right'?-0.85:(Math.random()<0.5?0.5:-0.5)));
+
+  kState={
+    phase:'dive',t:0,
+    sx:keeperRoot.position.x,tx:sideX[side],
+    srot:keeperRoot.rotation.z,trot:lean,
+    diveFrame,
+  };
+  applySpriteFrame(keeperTex,diveFrame,CFG.keeperFrameCount);
+
+  playerAnim={phase:'run',t:0};
+
+  const p0=ballMesh.position.clone();
+  const p2=new THREE.Vector3(target.x,target.y,target.z);
+  const mid=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
+  mid.y+=2.05+Math.random()*0.35;
+  ballAnim={active:true,t:0,dur:0.58,p0,p1:mid,p2};
+
+  const colMap={0:'left',1:'center',2:'right'};
   let saved=false;
-  if(side===cm[col]){
-    if(row===0&&col!==1) saved=Math.random()<0.20;
-    else if(row===0)     saved=Math.random()<0.30;
+  if(side===colMap[col]){
+    if(row===0&&col!==1) saved=Math.random()<0.2;
+    else if(row===0)     saved=Math.random()<0.3;
     else                 saved=Math.random()<0.58;
   } else saved=Math.random()<0.04;
 
-  // Kaleci
-  if(keeper){
-    const sideX={left:-GW*0.28,center:0,right:GW*0.28};
-    kAnim={phase:'dive',t:0,sx:keeper.root.position.x,tx:sideX[side]};
-    playAnim(keeper, pickKAnim(side,row));
-  }
-
-  // Arda kick
-  playAnim(arda,'kick');
-
-  // Top
-  const p0=ballMesh.position.clone();
-  const p2=target.clone();
-  const p1=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
-  p1.y+=2.0+Math.random()*0.4;
-  ballAnim={on:true,t:0,dur:0.55,p0,p1,p2};
-
-  setTimeout(()=>land(saved,target),560);
+  setTimeout(()=>onLand(saved,target),560);
 }
 
-function land(saved,wt){
+function onLand(saved,worldTarget){
   shots++;
   const dot=document.getElementById('dot-'+(shots-1));
-  const wv=wt.clone().project(cam);
-  const px=(wv.x*0.5+0.5)*W, py=(-wv.y*0.5+0.5)*H;
+  const wvec=worldTarget.clone();
+  wvec.project(camera);
+  const px=(wvec.x*0.5+0.5)*W, py=(-wvec.y*0.5+0.5)*H;
+
   if(!saved){
     goals++;document.getElementById('sGoal').textContent=goals;
     if(dot)dot.classList.add('goal');
-    spawnP(px,py);spawnC(px,py-H*0.06);
-    showRes(true);
-  }else{
+    spawnParts(px,py); spawnConfetti(px,py-H*0.06);
+    showResult(true);
+  } else {
     misses++;document.getElementById('sMiss').textContent=misses;
     if(dot)dot.classList.add('miss');
-    showRes(false);
+    showResult(false);
   }
   document.getElementById('sRemain').textContent=TOTAL-shots;
 }
 
-function showRes(ok){
+function showResult(isGoal){
   const ov=document.getElementById('result');
-  document.getElementById('rEmoji').textContent=ok?'⚽':'🧤';
+  document.getElementById('rEmoji').textContent=isGoal?'⚽':'🧤';
   const rt=document.getElementById('rTxt');
-  rt.textContent=ok?'GOL!':'TUTUDU!';
-  rt.className='rtxt '+(ok?'gt':'mt');
-  document.getElementById('rSub').textContent=(ok?GMSG:MMSG)[Math.floor(Math.random()*(ok?GMSG:MMSG).length)];
+  rt.textContent=isGoal?'GOL!':'TUTUDU!';
+  rt.className='rtxt '+(isGoal?'gt':'mt');
+  document.getElementById('rSub').textContent=(isGoal?GMSG:MMSG)[Math.floor(Math.random()*(isGoal?GMSG:MMSG).length)];
   ov.classList.add('show');
   setTimeout(()=>{
     ov.classList.remove('show');
-    if(ballMesh){ballMesh.position.set(0,BALL_R,0);ballAnim.on=false;}
-    playAnim(arda,'idle');
-    if(keeper){
-      kAnim={phase:'return',t:0,sx:keeper.root.position.x,tx:0};
-      playAnim(keeper,'idle');
-    }
-    if(shots>=TOTAL) setTimeout(showFinal,450);
-    else{canShoot=true;document.getElementById('banner').style.display='';}
+    if(!assetsReady)return;
+    ballMesh.position.set(0,BALL_R,0);
+    ballAnim.active=false;
+    playerRoot.position.set(0,0,0.55);
+    playerRoot.rotation.set(0,0,0);
+    playerAnim={phase:'idle',t:0};
+    applySpriteFrame(playerTex,0,CFG.playerFrameCount);
+    kState={phase:'return',t:0,sx:keeperRoot.position.x,srot:keeperRoot.rotation.z,diveFrame:kState.diveFrame};
   },1600);
+}
+
+function resetRoundVisuals(){
+  if(!assetsReady)return;
+  ballMesh.position.set(0,BALL_R,0);
+  ballMesh.scale.setScalar(1);
+  ballAnim.active=false;
+  playerRoot.position.set(0,0,0.55);
+  playerRoot.rotation.set(0,0,0);
+  playerAnim={phase:'idle',t:0};
+  applySpriteFrame(playerTex,0,CFG.playerFrameCount);
+}
+
+function resetPositions(){
+  resetRoundVisuals();
+  keeperRoot.position.set(0,KEEPER_WorldH/2,GZ+0.35);
+  keeperRoot.rotation.set(0,0,0);
+  applySpriteFrame(keeperTex,0,CFG.keeperFrameCount);
+  kState={phase:'idle',t:0,sx:0,tx:0,srot:0,trot:0,diveFrame:0};
 }
 
 function showFinal(){
   const pct=goals/TOTAL;
   const t=document.getElementById('fTrophy'),ti=document.getElementById('fTitle'),m=document.getElementById('fMsg');
   document.getElementById('fScore').textContent=goals+'/'+TOTAL+' GOL';
-  if(pct===1)      {t.textContent='🏆';ti.textContent='MUKEMMEL!';ti.style.color='#FFD700';m.textContent='Tum penaltilari gol yaptin!';}
-  else if(pct>=0.8){t.textContent='🥇';ti.textContent='HARIKA!';  ti.style.color='#FFD700';m.textContent='Cok iyi!';}
-  else if(pct>=0.6){t.textContent='⭐';ti.textContent='IYI!';    ti.style.color='#4FC3F7';m.textContent='Guzel oyun!';}
+  if(pct===1){t.textContent='🏆';ti.textContent='MUKEMMEL!';ti.style.color='#FFD700';m.textContent='Tum penaltilari gol yaptin!';}
+  else if(pct>=0.8){t.textContent='🥇';ti.textContent='HARIKA!';ti.style.color='#FFD700';m.textContent='Cok iyi!';}
+  else if(pct>=0.6){t.textContent='⭐';ti.textContent='IYI!';ti.style.color='#4FC3F7';m.textContent='Guzel oyun!';}
   else if(pct>=0.4){t.textContent='💪';ti.textContent='DEVAM ET!';ti.style.color='#FF9800';m.textContent='Rovans ver!';}
-  else             {t.textContent='😅';ti.textContent='OLMADI!'; ti.style.color='#FF5252';m.textContent='Bu sefer kaleci kazandi!';}
+  else{t.textContent='😅';ti.textContent='OLMADI!';ti.style.color='#FF5252';m.textContent='Bu sefer kaleci kazandi!';}
   document.getElementById('final').classList.add('show');
   gameActive=false;
-  spawnC(W/2,H*0.35);
+  spawnConfetti(W/2,H*0.35);
   if(tg){try{tg.sendData(JSON.stringify({game:'penalti',goals,misses,total:TOTAL}));}catch(e){}}
 }
 
 function resetGame(){
+  if(!assetsReady)return;
   goals=0;misses=0;shots=0;canShoot=true;gameActive=true;
   document.getElementById('sGoal').textContent='0';
   document.getElementById('sMiss').textContent='0';
   document.getElementById('sRemain').textContent=TOTAL;
   document.getElementById('final').classList.remove('show');
   document.getElementById('banner').style.display='';
-  parts=[];confs=[];buildDots();
-  if(ballMesh){ballMesh.position.set(0,BALL_R,0);ballAnim.on=false;}
-  playAnim(arda,'idle');
-  if(keeper){
-    keeper.root.position.set(0,0,GZ+1.0);
-    kAnim={phase:'idle',t:0,sx:0,tx:0};
-    playAnim(keeper,'idle');
-  }
+  particles=[];confetti=[];
+  buildDots();resetPositions();
 }
-window.resetGame=resetGame;
 
+window.resetGame=resetGame;
 window.shareResult=function(){
   const txt='Pusulabet Penalti: '+goals+'/'+TOTAL+' gol! @pusulasocial';
-  if(tg&&tg.openTelegramLink) tg.openTelegramLink('https://t.me/share/url?url=https://t.me/pusulabetgame_bot/penalti&text='+encodeURIComponent(txt));
-  else if(navigator.share) navigator.share({text:txt});
+  if(tg&&tg.openTelegramLink)tg.openTelegramLink('https://t.me/share/url?url=https://t.me/pusulabetgame_bot/penalti&text='+encodeURIComponent(txt));
+  else if(navigator.share)navigator.share({text:txt});
 };
 
-function startGame(){document.getElementById('start').style.display='none';gameActive=true;canShoot=true;}
-window.startGame=startGame;
-document.getElementById('btnStart')?.addEventListener('click',e=>{e.preventDefault();startGame();});
+function buildDots(){
+  const cont=document.getElementById('dots');cont.innerHTML='';
+  for(let i=0;i<TOTAL;i++){const d=document.createElement('div');d.className='dot';d.id='dot-'+i;cont.appendChild(d);}
+}
 
-// ── PARTIKUL ──
-function spawnP(cx,cy){for(let i=0;i<32;i++){const a=Math.random()*Math.PI*2,s=1.5+Math.random()*5;parts.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,decay:0.02+Math.random()*0.02,r:2+Math.random()*5,col:Math.random()<0.5?'#00E676':'#FFD700'});}}
-function spawnC(cx,cy){for(let i=0;i<70;i++){const a=(Math.random()-0.5)*Math.PI*1.5-Math.PI/2,s=4+Math.random()*11;confs.push({x:cx,y:cy,vx:Math.cos(a)*s+(Math.random()-0.5)*4,vy:Math.sin(a)*s,w:4+Math.random()*8,h:3+Math.random()*5,rot:Math.random()*Math.PI*2,rotV:(Math.random()-0.5)*0.35,life:1,decay:0.008+Math.random()*0.008,col:CC[Math.floor(Math.random()*CC.length)]});}}
+function spawnParts(cx,cy){
+  for(let i=0;i<32;i++){
+    const a=Math.random()*Math.PI*2,s=1.5+Math.random()*5;
+    particles.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,decay:0.02+Math.random()*0.02,r:2+Math.random()*5,col:Math.random()<0.5?'#00E676':'#FFD700'});
+  }
+}
+function spawnConfetti(cx,cy){
+  for(let i=0;i<70;i++){
+    const a=(Math.random()-0.5)*Math.PI*1.5-Math.PI/2,s=4+Math.random()*11;
+    confetti.push({x:cx,y:cy,vx:Math.cos(a)*s+(Math.random()-0.5)*4,vy:Math.sin(a)*s,w:4+Math.random()*8,h:3+Math.random()*5,rot:Math.random()*Math.PI*2,rotV:(Math.random()-0.5)*0.35,life:1,decay:0.008+Math.random()*0.008,col:COLORS[Math.floor(Math.random()*COLORS.length)]});
+  }
+}
+
 function drawFx(){
   fctx.clearRect(0,0,W,H);
-  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.18;p.life-=p.decay;if(p.life<=0){parts.splice(i,1);continue;}fctx.globalAlpha=p.life;fctx.fillStyle=p.col;fctx.beginPath();fctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);fctx.fill();}
-  for(let i=confs.length-1;i>=0;i--){const c=confs[i];c.x+=c.vx;c.y+=c.vy;c.vy+=0.28;c.vx*=0.99;c.rot+=c.rotV;c.life-=c.decay;if(c.life<=0){confs.splice(i,1);continue;}fctx.save();fctx.globalAlpha=c.life;fctx.translate(c.x,c.y);fctx.rotate(c.rot);fctx.fillStyle=c.col;fctx.fillRect(-c.w/2,-c.h/2,c.w,c.h);fctx.restore();}
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.18;p.life-=p.decay;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    fctx.globalAlpha=p.life;fctx.fillStyle=p.col;fctx.beginPath();fctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);fctx.fill();
+  }
+  for(let i=confetti.length-1;i>=0;i--){
+    const c=confetti[i];c.x+=c.vx;c.y+=c.vy;c.vy+=0.28;c.vx*=0.99;c.rot+=c.rotV;c.life-=c.decay;
+    if(c.life<=0){confetti.splice(i,1);continue;}
+    fctx.save();fctx.globalAlpha=c.life;fctx.translate(c.x,c.y);fctx.rotate(c.rot);fctx.fillStyle=c.col;fctx.fillRect(-c.w/2,-c.h/2,c.w,c.h);fctx.restore();
+  }
   fctx.globalAlpha=1;
 }
 
-// ── INPUT ──
-function buildDots(){const cont=document.getElementById('dots');cont.innerHTML='';for(let i=0;i<TOTAL;i++){const d=document.createElement('div');d.className='dot';d.id='dot-'+i;cont.appendChild(d);}}
-canvas.addEventListener('mousemove',e=>{if(gameActive&&canShoot)hover(e.clientX,e.clientY);});
-canvas.addEventListener('click',e=>{if(!gameActive||!canShoot)return;hover(e.clientX,e.clientY);if(hoverCell.r>=0)shoot(hoverCell.r,hoverCell.c);});
-canvas.addEventListener('touchstart',e=>{if(!gameActive||!canShoot)return;const t=e.touches[0];hover(t.clientX,t.clientY);if(hoverCell.r>=0){e.preventDefault();shoot(hoverCell.r,hoverCell.c);}},{passive:false});
-canvas.addEventListener('touchmove',e=>{if(gameActive&&canShoot)hover(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+canvas.addEventListener('mousemove',e=>{ if(gameActive&&canShoot) updateHover(e.clientX,e.clientY); });
+canvas.addEventListener('click',e=>{
+  if(!gameActive||!canShoot)return;
+  updateHover(e.clientX,e.clientY);
+  if(hoverCell.r>=0) shoot(hoverCell.r,hoverCell.c);
+});
+canvas.addEventListener('touchstart',e=>{
+  if(!gameActive||!canShoot)return;
+  const t=e.touches[0];
+  updateHover(t.clientX,t.clientY);
+  if(hoverCell.r>=0){ e.preventDefault(); shoot(hoverCell.r,hoverCell.c); }
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  if(!gameActive||!canShoot)return;
+  updateHover(e.touches[0].clientX,e.touches[0].clientY);
+},{passive:true});
 
-// ── ANA DONGU ──
 let lastT=0;
 function loop(ts){
-  const dt=Math.min((ts-lastT)/1000,0.05);lastT=ts;
+  const dt=Math.min((ts-lastT)/1000,0.05); lastT=ts;
 
-  tickChar(arda,dt);
-  tickChar(keeper,dt);
+  if(!assetsReady){
+    renderer.render(scene,camera);
+    drawFx();
+    requestAnimationFrame(loop);
+    return;
+  }
 
-  if(ballAnim.on&&ballMesh){
+  if(ballAnim.active){
     ballAnim.t+=dt;
-    const u=Math.min(ballAnim.t/ballAnim.dur,1),e=easeIO(u);
-    const{p0,p1,p2}=ballAnim;
+    const u=Math.min(ballAnim.t/ballAnim.dur,1);
+    const e=easeInOut(u);
+    const p0=ballAnim.p0,p1=ballAnim.p1,p2=ballAnim.p2;
     ballMesh.position.x=(1-e)*(1-e)*p0.x+2*(1-e)*e*p1.x+e*e*p2.x;
     ballMesh.position.y=(1-e)*(1-e)*p0.y+2*(1-e)*e*p1.y+e*e*p2.y;
     ballMesh.position.z=(1-e)*(1-e)*p0.z+2*(1-e)*e*p1.z+e*e*p2.z;
-    ballMesh.rotation.x+=14*dt;ballMesh.rotation.z+=10*dt;
-    if(u>=1)ballAnim.on=false;
+    ballMesh.rotation.x+=14*dt;
+    ballMesh.rotation.z+=10*dt;
+    if(u>=1){ ballAnim.active=false; ballMesh.scale.setScalar(1); }
   }
 
-  if(keeper){
-    if(kAnim.phase==='dive'){
-      kAnim.t+=dt;
-      const u=Math.min(kAnim.t/0.42,1),e=easeOut(u);
-      keeper.root.position.x=kAnim.sx+(kAnim.tx-kAnim.sx)*e;
-      keeper.root.position.y=Math.sin(u*Math.PI)*0.15;
-      if(u>=1)kAnim.phase='hold';
-    }else if(kAnim.phase==='return'){
-      kAnim.t+=dt;
-      const u=Math.min(kAnim.t/0.6,1),e=easeIO(u);
-      keeper.root.position.x=kAnim.sx*(1-e);
-      keeper.root.position.y=0;
-      if(u>=1){kAnim.phase='idle';keeper.root.position.set(0,0,GZ+1.0);}
-    }else{
-      keeper.root.position.x=Math.sin(ts*0.0014)*0.04;
-      keeper.root.position.y=0;
+  if(playerAnim.phase==='run'){
+    playerAnim.t+=dt;
+    applySpriteFrame(playerTex,1,CFG.playerFrameCount);
+    if(playerAnim.t>0.28){ playerAnim.phase='prep'; playerAnim.t=0; }
+  } else if(playerAnim.phase==='prep'){
+    playerAnim.t+=dt;
+    applySpriteFrame(playerTex,2,CFG.playerFrameCount);
+    if(playerAnim.t>0.14){ playerAnim.phase='kick'; playerAnim.t=0; }
+  } else if(playerAnim.phase==='kick'){
+    playerAnim.t+=dt;
+    applySpriteFrame(playerTex,3,CFG.playerFrameCount);
+    if(playerAnim.t>0.22){
+      playerAnim.phase='idle';
+      applySpriteFrame(playerTex,0,CFG.playerFrameCount);
     }
+  } else {
+    applySpriteFrame(playerTex,0,CFG.playerFrameCount);
   }
 
-  rdr.render(scene,cam);
+  if(kState.phase==='dive'){
+    kState.t+=dt;
+    const T=0.42;
+    const u=Math.min(kState.t/T,1);
+    const e=easeOutCubic(u);
+    keeperRoot.position.x=kState.sx+(kState.tx-kState.sx)*e;
+    keeperRoot.rotation.z=kState.srot+(kState.trot-kState.srot)*e;
+    keeperRoot.position.y=KEEPER_WorldH/2+Math.sin(u*Math.PI)*0.28*e;
+    applySpriteFrame(keeperTex,kState.diveFrame,CFG.keeperFrameCount);
+    if(u>=1) kState.phase='hold';
+  } else if(kState.phase==='hold'){
+    kState.t+=dt;
+    applySpriteFrame(keeperTex,kState.diveFrame,CFG.keeperFrameCount);
+  } else if(kState.phase==='return'){
+    kState.t+=dt;
+    const T=0.52;
+    const u=Math.min(kState.t/T,1);
+    const e=easeInOut(u);
+    keeperRoot.position.x=kState.sx*(1-e);
+    keeperRoot.rotation.z=kState.srot*(1-e);
+    keeperRoot.position.y=KEEPER_WorldH/2;
+    applySpriteFrame(keeperTex,0,CFG.keeperFrameCount);
+    if(u>=1){
+      kState.phase='idle';
+      keeperRoot.position.set(0,KEEPER_WorldH/2,GZ+0.35);
+      keeperRoot.rotation.set(0,0,0);
+      applySpriteFrame(keeperTex,0,CFG.keeperFrameCount);
+      if(shots>=TOTAL) setTimeout(showFinal,80);
+      else{ canShoot=true; document.getElementById('banner').style.display=''; }
+    }
+  } else {
+    applySpriteFrame(keeperTex,0,CFG.keeperFrameCount);
+  }
+
+  billboardSprite(playerRoot);
+  billboardSprite(keeperRoot);
+
+  renderer.render(scene,camera);
   drawFx();
   requestAnimationFrame(loop);
 }
 
-// ── BOOT ──
-const texLoader=new THREE.TextureLoader();
-texLoader.setCrossOrigin('anonymous');
-
-async function boot(){
-  // Top
-  try{
-    const bt=await new Promise((res,rej)=>texLoader.load(BASE+'ball.png',res,undefined,rej));
-    bt.colorSpace=THREE.SRGBColorSpace;
-    ballMesh=new THREE.Mesh(
-      new THREE.SphereGeometry(BALL_R,32,32),
-      new THREE.MeshStandardMaterial({map:bt,roughness:0.35,metalness:0.05})
+/**
+ * @param {string} url
+ * @param {string} label konsol log icin
+ * @param {{sheet?:boolean}} opt sheet=false → sadece SRGB (or. tek kare ball.png)
+ */
+function loadTextureAsset(url,label,opt={}){
+  const useSheet=opt.sheet!==false;
+  return new Promise((resolve,reject)=>{
+    textureLoader.load(
+      url,
+      (tex)=>{
+        try{
+          if(useSheet) prepareSheetTexture(tex);
+          else{
+            tex.colorSpace=THREE.SRGBColorSpace;
+            tex.needsUpdate=true;
+          }
+          resolve(tex);
+        }catch(e){
+          console.error('[TextureLoader] prepareSheet/hazirlik hatasi',label,url,e);
+          reject(e);
+        }
+      },
+      undefined,
+      (evt)=>{
+        console.error('[TextureLoader] yukleme basarisiz',label,url,evt);
+        reject(new Error(typeof evt?.message==='string'?evt.message:('Yuklenemedi: '+label)));
+      }
     );
-    ballMesh.position.set(0,BALL_R,0);
-    scene.add(ballMesh);
-  }catch(e){console.warn('Top yuklenemedi');}
-
-  // ── ARDA FBX ──
-  const [ardaIdle, ardaKick] = await Promise.all([
-    loadFBX(BASE+'arda/idle.fbx'),
-    loadFBX(BASE+'arda/kick.fbx'),
-  ]);
-
-  if(ardaIdle||ardaKick){
-    const root=new THREE.Group();
-    root.rotation.y=Math.PI; // kameraya arkasiyla
-    root.renderOrder=10;
-    scene.add(root);
-    arda={root, models:{}, mixers:{}, actions:{}, current:''};
-
-    // Idle modeli
-    if(ardaIdle){
-      normalizeChar(ardaIdle, ARDA_TARGET_H);
-      ardaIdle.visible=true;
-      root.add(ardaIdle);
-      const mx=new THREE.AnimationMixer(ardaIdle);
-      const clip=ardaIdle.animations[0];
-      if(clip){
-        const act=mx.clipAction(clip);
-        act.setLoop(THREE.LoopRepeat,Infinity);
-        act.play();
-        arda.models.idle=ardaIdle;
-        arda.mixers.idle=mx;
-        arda.actions.idle=act;
-      }
-    }
-
-    // Kick modeli
-    if(ardaKick){
-      normalizeChar(ardaKick, ARDA_TARGET_H);
-      ardaKick.visible=false;
-      root.add(ardaKick);
-      const mx=new THREE.AnimationMixer(ardaKick);
-      const clip=ardaKick.animations[0];
-      if(clip){
-        const act=mx.clipAction(clip);
-        act.setLoop(THREE.LoopOnce,1);
-        act.clampWhenFinished=true;
-        arda.models.kick=ardaKick;
-        arda.mixers.kick=mx;
-        arda.actions.kick=act;
-      }
-    }
-
-    arda.current='idle';
-
-    // Arda pozisyonu — penalti noktasi onunde
-    root.position.set(0,0,1.0);
-    console.log('[Arda] hazir, actions:',Object.keys(arda.actions));
-  }
-
-  // ── KALECI FBX ──
-  const keeperFiles=[
-    ['idle',          BASE+'keeper/idle.fbx',           THREE.LoopRepeat],
-    ['dive_left',     BASE+'keeper/dive_left.fbx',      THREE.LoopOnce],
-    ['dive_right',    BASE+'keeper/dive_right.fbx',     THREE.LoopOnce],
-    ['save_low_left', BASE+'keeper/save_low_left.fbx',  THREE.LoopOnce],
-    ['save_low_right',BASE+'keeper/save_low_right.fbx', THREE.LoopOnce],
-    ['sidestep_left', BASE+'keeper/sidestep_left.fbx',  THREE.LoopOnce],
-    ['sidestep_right',BASE+'keeper/sidestep_right.fbx', THREE.LoopOnce],
-  ];
-
-  const kRoot=new THREE.Group();
-  kRoot.position.set(0,0,GZ+1.0);
-  kRoot.rotation.y=0;
-  kRoot.renderOrder=8;
-  scene.add(kRoot);
-  keeper={root:kRoot, models:{}, mixers:{}, actions:{}, current:''};
-
-  // Paralel yukle
-  const kLoaded=await Promise.all(keeperFiles.map(([,url])=>loadFBX(url)));
-
-  kLoaded.forEach((fbx,i)=>{
-    if(!fbx)return;
-    const[name,,loop]=keeperFiles[i];
-    normalizeChar(fbx, KEEPER_TARGET_H);
-    fbx.visible=(name==='idle'); // sadece idle baslangicta gorunur
-    kRoot.add(fbx);
-    const mx=new THREE.AnimationMixer(fbx);
-    const clip=fbx.animations[0];
-    if(clip){
-      const act=mx.clipAction(clip);
-      act.setLoop(loop,loop===THREE.LoopOnce?1:Infinity);
-      if(loop===THREE.LoopOnce) act.clampWhenFinished=true;
-      if(name==='idle') act.play();
-      keeper.models[name]=fbx;
-      keeper.mixers[name]=mx;
-      keeper.actions[name]=act;
-    }
   });
-
-  keeper.current='idle';
-  console.log('[Keeper] hazir, actions:',Object.keys(keeper.actions));
-
-  // BG
-  try{
-    const bgT=await new Promise((res,rej)=>texLoader.load(BASE+'bg.png',res,undefined,rej));
-    bgT.colorSpace=THREE.SRGBColorSpace;
-    const bgM=new THREE.Mesh(
-      new THREE.PlaneGeometry(30,20),
-      new THREE.MeshBasicMaterial({map:bgT,depthWrite:false,depthTest:false})
-    );
-    bgM.position.set(0,1.6,-12);
-    bgM.renderOrder=-500;
-    scene.add(bgM);
-  }catch(e){console.warn('BG yuklenemedi');}
-
-  ready=true;
-  buildDots();
-  console.log('[boot] Hazir!');
 }
 
+function addBackgroundIfNeeded(bgT){
+  if(bgMesh) return;
+  /**
+   * Kamera: (0, 0.85, 5.5) → bakış (0, 1.5, -11), FOV=38°
+   * bg plane: z=-19 (kameradan 24.5 birim uzakta)
+   *
+   * z=-19'da kamera bakış y'si:
+   *   yön = normalize(0, 0.65, -16.5) → dy_norm ≈ 0.0394
+   *   y_look = 0.85 + 0.0394 * 24.5 ≈ 1.81 m
+   *
+   * Görüş yüksekliği z=-19'da:
+   *   2 * 24.5 * tan(19°) ≈ 16.88 m
+   *
+   * bg.png (1536×1024, 3:2) → bgH=24, bgW=36 (oran korunuyor)
+   *   dikey kaplama: 24/16.88 = 1.42× ✓
+   *
+   * bg.png'de kale yaklaşık alttan %40:
+   *   bg bottom = bgCenterY - 12 = 4.2 - 12 = -7.8
+   *   %40 noktası = -7.8 + 0.4*24 = 1.8 ≈ y_look ✓
+   *
+   * Portrait (9:16) için bgW=36 tam ortayı gösterir — sorun yok.
+   */
+  const bgH=24, bgW=36;       // 36/24=1.5 → bg.png 3:2 oran
+  const bgZ=-19;
+  const bgCenterY=4.2;        // kamera bakışını kale bandına hizalar
+  bgMesh=new THREE.Mesh(
+    new THREE.PlaneGeometry(bgW,bgH),
+    new THREE.MeshBasicMaterial({map:bgT,depthWrite:false,depthTest:false})
+  );
+  bgMesh.position.set(0,bgCenterY,bgZ);
+  bgMesh.renderOrder=-500;
+  scene.add(bgMesh);
+}
+
+async function boot(){
+  console.log('[assets] CFG.ASSETS',CFG.ASSETS);
+  try{
+    const [ballT,pT,kT]=await Promise.all([
+      loadTextureAsset(CFG.ASSETS.ball,'ball',{sheet:false}),
+      loadTextureAsset(CFG.ASSETS.player,'player',{sheet:true}),
+      loadTextureAsset(CFG.ASSETS.keeper,'keeper',{sheet:true}),
+    ]);
+    console.log('[assets] ball, player, keeper textures OK');
+
+    // roughness↓ → top daha parlak ve net görünür
+    const ballMat=new THREE.MeshStandardMaterial({map:ballT,roughness:0.35,metalness:0.05,envMapIntensity:0.5});
+    ballMesh=new THREE.Mesh(new THREE.SphereGeometry(BALL_R,32,32),ballMat);
+    ballMesh.castShadow=true;
+    ballMesh.position.set(0,BALL_R,0);
+    scene.add(ballMesh);
+
+    playerTex=pT.clone();
+    prepareSheetTexture(playerTex);
+    applySpriteFrame(playerTex,0,CFG.playerFrameCount);
+    playerMat=new THREE.MeshBasicMaterial({map:playerTex,transparent:true,depthWrite:false,side:THREE.DoubleSide});
+    const playerPlane=new THREE.Mesh(new THREE.PlaneGeometry(PLAYER_WorldW,PLAYER_WorldH),playerMat);
+    playerPlane.position.y=PLAYER_WorldH/2;
+    playerRoot=new THREE.Group();
+    playerRoot.add(playerPlane);
+    playerRoot.position.set(0,0,0.55);
+    playerRoot.renderOrder=10;
+    scene.add(playerRoot);
+
+    keeperTex=kT.clone();
+    prepareSheetTexture(keeperTex);
+    applySpriteFrame(keeperTex,0,CFG.keeperFrameCount);
+    keeperMat=new THREE.MeshBasicMaterial({map:keeperTex,transparent:true,depthWrite:false,side:THREE.DoubleSide});
+    const keeperPlane=new THREE.Mesh(new THREE.PlaneGeometry(KEEPER_WorldW,KEEPER_WorldH),keeperMat);
+    keeperPlane.position.y=0;
+    keeperRoot=new THREE.Group();
+    keeperRoot.add(keeperPlane);
+    keeperRoot.position.set(0,KEEPER_WorldH/2,GZ+0.35);
+    keeperRoot.renderOrder=8;
+    scene.add(keeperRoot);
+
+    assetsReady=true;
+    console.log('[assets] assetsReady=true (player, keeper, ball sahneye eklendi)');
+    size();
+    buildDots();
+    resetPositions();
+
+    try{
+      const bgT=await loadTextureAsset(CFG.ASSETS.bg,'bg',{sheet:false});
+      addBackgroundIfNeeded(bgT);
+      console.log('[assets] bg OK');
+    }catch(bgErr){
+      console.error('[assets] bg yuklenemedi (oyun devam eder)',bgErr);
+    }
+  }catch(err){
+    console.error('[boot] cekirdek asset (ball/player/keeper) yuklemesi basarisiz',err);
+    const msg='assets/ball.png, assets/arda.png, assets/keeper.png gerekli. index.html ile ayni kok. Hata: '+String(err?.message||err);
+    const d=document.createElement('div');
+    d.style.cssText='position:fixed;bottom:12px;left:12px;right:12px;max-width:520px;margin:auto;background:#1a1a1a;color:#ffb74d;padding:12px 16px;border-radius:10px;font:14px/1.4 sans-serif;z-index:9999;border:1px solid #444';
+    d.textContent=msg;
+    document.body.appendChild(d);
+  }
+}
+
+size();
 buildDots();
 requestAnimationFrame(loop);
 boot();
