@@ -143,6 +143,10 @@ function prepareSheetTexture(tex){
   tex.generateMipmaps=true;
 }
 
+/** Tek TextureLoader — tum asset yuklemeleri */
+const textureLoader=new THREE.TextureLoader();
+textureLoader.setCrossOrigin('anonymous');
+
 let tg=null;
 try{tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();tg.setHeaderColor('#061208');}}catch(e){}
 
@@ -618,34 +622,61 @@ function loop(ts){
   requestAnimationFrame(loop);
 }
 
-function loadTexture(url){
+/**
+ * @param {string} url
+ * @param {string} label konsol log icin
+ * @param {{sheet?:boolean}} opt sheet=false → sadece SRGB (or. tek kare ball.png)
+ */
+function loadTextureAsset(url,label,opt={}){
+  const useSheet=opt.sheet!==false;
   return new Promise((resolve,reject)=>{
-    new THREE.TextureLoader().load(url,(t)=>{
-      prepareSheetTexture(t);
-      resolve(t);
-    },undefined,reject);
+    textureLoader.load(
+      url,
+      (tex)=>{
+        try{
+          if(useSheet) prepareSheetTexture(tex);
+          else{
+            tex.colorSpace=THREE.SRGBColorSpace;
+            tex.needsUpdate=true;
+          }
+          resolve(tex);
+        }catch(e){
+          console.error('[TextureLoader] prepareSheet/hazirlik hatasi',label,url,e);
+          reject(e);
+        }
+      },
+      undefined,
+      (evt)=>{
+        console.error('[TextureLoader] yukleme basarisiz',label,url,evt);
+        reject(new Error(typeof evt?.message==='string'?evt.message:('Yuklenemedi: '+label)));
+      }
+    );
   });
 }
 
-async function boot(){
-  try{
-    const [bgT,ballT,pT,kT]=await Promise.all([
-      loadTexture(CFG.ASSETS.bg),
-      loadTexture(CFG.ASSETS.ball),
-      loadTexture(CFG.ASSETS.player),
-      loadTexture(CFG.ASSETS.keeper),
-    ]);
+function addBackgroundIfNeeded(bgT){
+  if(bgMesh) return;
+  const bgAspect=1536/1024;
+  const bgH=28;
+  const bgW=bgH*bgAspect;
+  bgMesh=new THREE.Mesh(
+    new THREE.PlaneGeometry(bgW,bgH),
+    new THREE.MeshBasicMaterial({map:bgT,depthWrite:false,depthTest:false})
+  );
+  bgMesh.position.set(0,bgH*0.42,-18);
+  bgMesh.renderOrder=-500;
+  scene.add(bgMesh);
+}
 
-    const bgAspect=1536/1024;
-    const bgH=28;
-    const bgW=bgH*bgAspect;
-    bgMesh=new THREE.Mesh(
-      new THREE.PlaneGeometry(bgW,bgH),
-      new THREE.MeshBasicMaterial({map:bgT,depthWrite:false,depthTest:false})
-    );
-    bgMesh.position.set(0,bgH*0.42,-18);
-    bgMesh.renderOrder=-500;
-    scene.add(bgMesh);
+async function boot(){
+  console.log('[assets] CFG.ASSETS',CFG.ASSETS);
+  try{
+    const [ballT,pT,kT]=await Promise.all([
+      loadTextureAsset(CFG.ASSETS.ball,'ball',{sheet:false}),
+      loadTextureAsset(CFG.ASSETS.player,'player',{sheet:true}),
+      loadTextureAsset(CFG.ASSETS.keeper,'keeper',{sheet:true}),
+    ]);
+    console.log('[assets] ball, player, keeper textures OK');
 
     const ballMat=new THREE.MeshStandardMaterial({map:ballT,roughness:0.55,metalness:0.05});
     ballMesh=new THREE.Mesh(new THREE.SphereGeometry(BALL_R,32,32),ballMat);
@@ -678,12 +709,21 @@ async function boot(){
     scene.add(keeperRoot);
 
     assetsReady=true;
+    console.log('[assets] assetsReady=true (player, keeper, ball sahneye eklendi)');
     size();
     buildDots();
     resetPositions();
-  } catch(err){
-    console.error(err);
-    const msg='assets/ klasorunde bg.png, ball.png, arda.png, keeper.png olmali. index.html ile ayni dizinde olmalilar. Hata: '+String(err?.message||err);
+
+    try{
+      const bgT=await loadTextureAsset(CFG.ASSETS.bg,'bg',{sheet:false});
+      addBackgroundIfNeeded(bgT);
+      console.log('[assets] bg OK');
+    }catch(bgErr){
+      console.error('[assets] bg yuklenemedi (oyun devam eder)',bgErr);
+    }
+  }catch(err){
+    console.error('[boot] cekirdek asset (ball/player/keeper) yuklemesi basarisiz',err);
+    const msg='assets/ball.png, assets/arda.png, assets/keeper.png gerekli. index.html ile ayni kok. Hata: '+String(err?.message||err);
     const d=document.createElement('div');
     d.style.cssText='position:fixed;bottom:12px;left:12px;right:12px;max-width:520px;margin:auto;background:#1a1a1a;color:#ffb74d;padding:12px 16px;border-radius:10px;font:14px/1.4 sans-serif;z-index:9999;border:1px solid #444';
     d.textContent=msg;
