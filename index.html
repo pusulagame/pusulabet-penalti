@@ -126,13 +126,21 @@ const CFG = {
   keeperFrameCount: 5,
 };
 
-/** Yatay sprite sheet: tek satir, repeat.x = 1/n, offset.x = i/n */
+/**
+ * Yatay sprite sheet: tek satir, repeat.x = 1/n, offset.x = i/n
+ * UV inset: texture.userData.framePxW ayarlıysa, her kare kenarından
+ * 0.5 texel içeri çekilir → doğrusal örneklemeden kaynaklanan
+ * komşu-kare taşması (bleeding) engellenir.
+ */
 function applySpriteFrame(texture, frameIndex, frameCount){
   const i=Math.max(0,Math.min(frameCount-1,frameIndex|0));
   texture.wrapS=THREE.ClampToEdgeWrapping;
   texture.wrapT=THREE.ClampToEdgeWrapping;
-  texture.repeat.set(1/frameCount,1);
-  texture.offset.set(i/frameCount,0);
+  // eps = 0.5 piksel / toplam sheet genişliği (UV birimi)
+  const fpw=texture.userData?.framePxW||0;
+  const eps=fpw ? 0.5/(fpw*frameCount) : 0;
+  texture.repeat.set(1/frameCount - 2*eps, 1);
+  texture.offset.set(i/frameCount + eps, 0);
   texture.needsUpdate=true;
 }
 
@@ -234,24 +242,8 @@ pa.rotation.x=-Math.PI/2;
 pa.position.set(0,0.02,-5.5);
 scene.add(pa);
 
-const postMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.35,metalness:0.1});
-const pw=0.11, ph=GH;
-const leftP=new THREE.Mesh(new THREE.BoxGeometry(pw,ph,pw),postMat);
-leftP.position.set(-GW/2,ph/2,GZ);
-leftP.castShadow=true;
-const rightP=leftP.clone();
-rightP.position.set(GW/2,ph/2,GZ);
-const bar=new THREE.Mesh(new THREE.BoxGeometry(GW+pw,pw,pw),postMat);
-bar.position.set(0,GH,GZ);
-bar.castShadow=true;
-scene.add(leftP,rightP,bar);
-
-const net=new THREE.Mesh(
-  new THREE.PlaneGeometry(GW*0.98,GH*0.96),
-  new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.15,side:THREE.DoubleSide,depthWrite:false})
-);
-net.position.set(0,GH/2,GZ+0.06);
-scene.add(net);
+// 3D kale direkleri ve file KALDIRILDI — bg.png zaten gerçek kale içeriyor.
+// Çift kale efekti engellendi. goalPlane + hiGroup hücre tespiti için korunuyor.
 
 const goalPlane=new THREE.Plane(new THREE.Vector3(0,0,1),-GZ);
 const raycaster=new THREE.Raycaster();
@@ -382,11 +374,20 @@ function shoot(row,col){
   const sideX={left:keeperRoot.position.x-GW*0.18, center:keeperRoot.position.x, right:keeperRoot.position.x+GW*0.18};
   const lean=(side==='left'?0.85:(side==='right'?-0.85:(Math.random()<0.5?0.5:-0.5)));
 
+  // saved hesabı kState'ten önce yapılıyor → animasyona geçiliyor
+  const colMap={0:'left',1:'center',2:'right'};
+  let saved=false;
+  if(side===colMap[col]){
+    if(row===0&&col!==1) saved=Math.random()<0.2;
+    else if(row===0)     saved=Math.random()<0.3;
+    else                 saved=Math.random()<0.58;
+  } else saved=Math.random()<0.04;
+
   kState={
     phase:'dive',t:0,
     sx:keeperRoot.position.x,tx:sideX[side],
     srot:keeperRoot.rotation.z,trot:lean,
-    diveFrame,
+    diveFrame, saved,
   };
   applySpriteFrame(keeperTex,diveFrame,CFG.keeperFrameCount);
 
@@ -397,14 +398,6 @@ function shoot(row,col){
   const mid=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
   mid.y+=2.05+Math.random()*0.35;
   ballAnim={active:true,t:0,dur:0.58,p0,p1:mid,p2};
-
-  const colMap={0:'left',1:'center',2:'right'};
-  let saved=false;
-  if(side===colMap[col]){
-    if(row===0&&col!==1) saved=Math.random()<0.2;
-    else if(row===0)     saved=Math.random()<0.3;
-    else                 saved=Math.random()<0.58;
-  } else saved=Math.random()<0.04;
 
   setTimeout(()=>onLand(saved,target),560);
 }
@@ -602,12 +595,23 @@ function loop(ts){
     const u=Math.min(kState.t/T,1);
     const e=easeOutCubic(u);
     keeperRoot.position.x=kState.sx+(kState.tx-kState.sx)*e;
-    keeperRoot.rotation.z=kState.srot+(kState.trot-kState.srot)*e;
-    keeperRoot.position.y=KEEPER_WorldH/2+Math.sin(u*Math.PI)*0.28*e;
+    // Kurtarışta daha sert eğim (kol tam uzanmış), kaçışta biraz daha az
+    const leanScale=kState.saved?1.25:0.85;
+    keeperRoot.rotation.z=kState.srot+(kState.trot*leanScale-kState.srot)*e;
+    keeperRoot.position.y=KEEPER_WorldH/2+Math.sin(u*Math.PI)*0.38*e;
     applySpriteFrame(keeperTex,kState.diveFrame,CFG.keeperFrameCount);
     if(u>=1) kState.phase='hold';
   } else if(kState.phase==='hold'){
     kState.t+=dt;
+    if(kState.saved){
+      // Kurtarış: sert eğimde sabit dur — elin uzandığı belli olsun
+      keeperRoot.position.y=KEEPER_WorldH/2+0.12;
+    } else {
+      // Kaçış: yavaşça yere sürünür gibi dibe iner
+      const sag=Math.min(kState.t/0.4,1);
+      keeperRoot.position.y=KEEPER_WorldH/2+0.38*(1-sag)-0.08*sag;
+      keeperRoot.rotation.z=kState.trot*(1-sag*0.3);
+    }
     applySpriteFrame(keeperTex,kState.diveFrame,CFG.keeperFrameCount);
   } else if(kState.phase==='return'){
     kState.t+=dt;
@@ -627,6 +631,12 @@ function loop(ts){
       else{ canShoot=true; document.getElementById('banner').style.display=''; }
     }
   } else {
+    // Idle: sol-sağ sallantı — kaleci hazır ve tetikte görünür
+    const swayX=Math.sin(ts*0.0018)*0.14;
+    const swayY=KEEPER_WorldH/2+Math.abs(Math.sin(ts*0.0018))*0.03;
+    keeperRoot.position.x=swayX;
+    keeperRoot.position.y=swayY;
+    keeperRoot.rotation.z=swayX*-0.12; // hafif vücut eğimi
     applySpriteFrame(keeperTex,0,CFG.keeperFrameCount);
   }
 
@@ -723,6 +733,7 @@ async function boot(){
 
     playerTex=pT.clone();
     prepareSheetTexture(playerTex);
+    playerTex.userData={framePxW:CFG.playerFrameWidth}; // UV inset için
     applySpriteFrame(playerTex,0,CFG.playerFrameCount);
     playerMat=new THREE.MeshBasicMaterial({map:playerTex,transparent:true,depthWrite:false,side:THREE.DoubleSide});
     const playerPlane=new THREE.Mesh(new THREE.PlaneGeometry(PLAYER_WorldW,PLAYER_WorldH),playerMat);
@@ -735,6 +746,7 @@ async function boot(){
 
     keeperTex=kT.clone();
     prepareSheetTexture(keeperTex);
+    keeperTex.userData={framePxW:CFG.keeperFrameWidth}; // UV inset için
     applySpriteFrame(keeperTex,0,CFG.keeperFrameCount);
     keeperMat=new THREE.MeshBasicMaterial({map:keeperTex,transparent:true,depthWrite:false,side:THREE.DoubleSide});
     const keeperPlane=new THREE.Mesh(new THREE.PlaneGeometry(KEEPER_WorldW,KEEPER_WorldH),keeperMat);
