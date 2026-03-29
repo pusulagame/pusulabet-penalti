@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Pusulabet Penaltı ⚽</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'Rajdhani',sans-serif;touch-action:manipulation;user-select:none;}
+#wrap{position:relative;width:100vw;height:100dvh;}
+#c{display:block;width:100vw;height:100dvh;touch-action:none;}
+#fx{position:absolute;inset:0;pointer-events:none;z-index:5;}
+#ui{position:fixed;inset:0;pointer-events:none;z-index:10;}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:14px 20px 0;background:linear-gradient(to bottom,rgba(0,0,0,0.75),transparent);}
+.hb{text-align:center;}
+.hl{font-family:'Bebas Neue',cursive;font-size:11px;letter-spacing:2.5px;color:rgba(255,255,255,0.45);display:block;}
+.hv{font-family:'Bebas Neue',cursive;font-size:40px;line-height:1;color:#FFD700;text-shadow:0 0 20px rgba(255,215,0,.7);}
+.hv.g{color:#00E676;text-shadow:0 0 20px rgba(0,230,118,.7);}
+.hv.r{color:#FF1744;text-shadow:0 0 20px rgba(255,23,68,.7);}
+#dots{position:absolute;bottom:22%;left:50%;transform:translateX(-50%);display:flex;gap:10px;}
+.dot{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);background:transparent;transition:all .35s;}
+.dot.goal{background:#00E676;border-color:#00E676;box-shadow:0 0 12px #00E676;}
+.dot.miss{background:#FF1744;border-color:#FF1744;box-shadow:0 0 12px #FF1744;}
+#banner{position:absolute;bottom:12%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,rgba(255,107,0,.97),rgba(200,15,0,.97));color:#fff;font-family:'Bebas Neue',cursive;font-size:clamp(14px,3.8vw,20px);letter-spacing:2px;padding:11px 28px;border-radius:50px;border:1px solid rgba(255,255,255,.2);box-shadow:0 4px 24px rgba(255,107,0,.55);white-space:nowrap;animation:pulse 1.6s ease-in-out infinite;}
+@keyframes pulse{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.04)}}
+#result{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;opacity:0;pointer-events:none;transition:opacity .3s;}
+#result.show{opacity:1;}
+.rbg{position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(5px);}
+.remoji{font-size:80px;position:relative;z-index:1;animation:bIn .45s cubic-bezier(.36,.07,.19,.97);}
+@keyframes bIn{0%{transform:scale(.1);opacity:0}55%{transform:scale(1.25)}100%{transform:scale(1);opacity:1}}
+.rtxt{font-family:'Bebas Neue',cursive;font-size:clamp(40px,10vw,64px);letter-spacing:5px;position:relative;z-index:1;text-shadow:0 4px 24px rgba(0,0,0,.9);}
+.rtxt.gt{color:#00E676;}.rtxt.mt{color:#FF1744;}
+.rsub{font-size:18px;color:rgba(255,255,255,.82);position:relative;z-index:1;letter-spacing:1px;}
+#final{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;}
+#final.show{display:flex;}
+.fbg{position:absolute;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);}
+.fcard{position:relative;z-index:1;background:linear-gradient(145deg,rgba(255,107,0,.1),rgba(0,0,0,.7));border:1px solid rgba(255,215,0,.28);border-radius:24px;padding:32px 40px;text-align:center;max-width:320px;width:88%;}
+.ftrophy{font-size:66px;margin-bottom:6px;}
+.ftitle{font-family:'Bebas Neue',cursive;font-size:48px;letter-spacing:3px;margin-bottom:4px;}
+.fscore{font-family:'Bebas Neue',cursive;font-size:32px;color:#FFD700;margin-bottom:10px;}
+.fmsg{font-size:15px;color:rgba(255,255,255,.7);line-height:1.55;margin-bottom:20px;}
+.btnP{background:linear-gradient(135deg,#FF6B00,#e02000);color:#fff;font-family:'Bebas Neue',cursive;font-size:22px;letter-spacing:2px;padding:14px 36px;border:none;border-radius:50px;cursor:pointer;width:100%;pointer-events:all;transition:transform .14s;}
+.btnP:active{transform:scale(.97);}
+.btnS{background:transparent;color:rgba(255,255,255,.5);font-size:14px;border:1px solid rgba(255,255,255,.15);border-radius:50px;padding:10px 28px;cursor:pointer;width:100%;margin-top:8px;pointer-events:all;}
+#start{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:48px;}
+.sbg{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.92) 0%,rgba(0,0,0,.15) 55%,transparent 100%);pointer-events:none;}
+.scard{position:relative;z-index:1;text-align:center;width:90%;max-width:340px;}
+.sbrand{font-family:'Bebas Neue',cursive;font-size:12px;letter-spacing:6px;color:#FF6B00;margin-bottom:4px;}
+.stitle{font-family:'Bebas Neue',cursive;font-size:64px;color:#fff;line-height:.9;letter-spacing:2px;text-shadow:0 4px 32px rgba(0,0,0,.9);margin-bottom:10px;}
+.stitle span{color:#FFD700;}
+.sdesc{font-size:15px;color:rgba(255,255,255,.65);margin-bottom:22px;line-height:1.5;}
+.srules{display:flex;justify-content:center;gap:28px;margin-bottom:24px;}
+.ri{text-align:center;}.ric{font-size:26px;}.rit{font-size:12px;color:rgba(255,255,255,.48);display:block;margin-top:3px;}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="c"></canvas>
+<canvas id="fx"></canvas>
+</div>
+<div id="ui">
+  <div id="hud">
+    <div class="hb"><span class="hl">GOL</span><div class="hv g" id="sGoal">0</div></div>
+    <div class="hb"><span class="hl">KALAN</span><div class="hv" id="sRemain">5</div></div>
+    <div class="hb"><span class="hl">KAÇTI</span><div class="hv r" id="sMiss">0</div></div>
+  </div>
+  <div id="dots"></div>
+  <div id="banner">⚽ KALEYE DOKUN — HEDEF SEC!</div>
+  <div id="result">
+    <div class="rbg"></div>
+    <div class="remoji" id="rEmoji">⚽</div>
+    <div class="rtxt" id="rTxt">GOL!</div>
+    <div class="rsub" id="rSub"></div>
+  </div>
+  <div id="final">
+    <div class="fbg"></div>
+    <div class="fcard">
+      <div class="ftrophy" id="fTrophy">🏆</div>
+      <div class="ftitle" id="fTitle">TEBRIKLER!</div>
+      <div class="fscore" id="fScore">5/5 GOL</div>
+      <div class="fmsg" id="fMsg">Mukemmel!</div>
+      <button class="btnP" onclick="resetGame()">🔄 TEKRAR OYNA</button>
+      <button class="btnS" onclick="shareResult()">📤 Skoru Paylas</button>
+    </div>
+  </div>
+  <div id="start">
+    <div class="sbg"></div>
+    <div class="scard">
+      <div class="sbrand">PUSULABET</div>
+      <div class="stitle">PENALTI<br><span>SUTLARI</span></div>
+      <div class="sdesc">Arda Guler — kaleye dokun, kose sec.</div>
+      <div class="srules">
+        <div class="ri"><div class="ric">⚽</div><span class="rit">5 Atis</span></div>
+        <div class="ri"><div class="ric">🥅</div><span class="rit">9 Kose</span></div>
+        <div class="ri"><div class="ric">✨</div><span class="rit">3D</span></div>
+      </div>
+      <button type="button" class="btnP" id="btnStart" style="font-size:26px;padding:16px;pointer-events:all;">⚽ BASLAT</button>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ——————————————————————————————————————————————
+// Asset Yolları
+// ——————————————————————————————————————————————
+function resolveAsset(relPath) {
+  const baseDir = new URL('.', import.meta.url).href;
+  return new URL(relPath, baseDir).href;
+}
+
+const CFG = {
+  ASSETS: {
+    bg:   resolveAsset('assets/bg.png'),
+    ball: resolveAsset('assets/ball.png'),
+    glb: {
+      arda_kick:             resolveAsset('assets/arda_kick.glb'),
+      arda_idle:             resolveAsset('assets/arda_idle.glb'),
+      keeper_idle:           resolveAsset('assets/keeper_idle.glb'),
+      keeper_dive_left:      resolveAsset('assets/keeper_dive_left.glb'),
+      keeper_dive_right:     resolveAsset('assets/keeper_dive_right.glb'),
+      keeper_save_low_left:  resolveAsset('assets/keeper_save_low_left.glb'),
+      keeper_save_low_right: resolveAsset('assets/keeper_save_low_right.glb'),
+      keeper_sidestep_left:  resolveAsset('assets/keeper_sidestep_left.glb'),
+      keeper_sidestep_right: resolveAsset('assets/keeper_sidestep_right.glb'),
+    }
+  },
+  ARDA_HEIGHT:   1.75,  // metre — GLB gerçek ölçek
+  KEEPER_HEIGHT: 1.90,  // metre — GLB gerçek ölçek
+};
+
+// ——————————————————————————————————————————————
+// GLB Yükleyici
+// ——————————————————————————————————————————————
+const gltfLoader = new GLTFLoader();
+
+function loadGLB(url) {
+  return new Promise((resolve, reject) => {
+    gltfLoader.load(
+      url,
+      (gltf) => resolve(gltf),
+      undefined,
+      (err) => {
+        console.error('[GLB] Yüklenemedi:', url, err);
+        reject(new Error('GLB yüklenemedi: ' + url));
+      }
+    );
+  });
+}
+
+/**
+ * GLB scene'ini hedef yüksekliğe ölçekle ve ayakları y=0'a yerleştir.
+ * GLB dosyaları genellikle metre ölçeğinde gelir ama Mixamo export'ları
+ * farklı olabilir — box ölçümüyle normalize ediyoruz.
+ */
+function normalizeGLB(scene3D, targetH) {
+  scene3D.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(scene3D);
+  const sz  = new THREE.Vector3();
+  box.getSize(sz);
+  if (sz.y < 0.001) { console.warn('[normalizeGLB] Sıfır yükseklik, atlanıyor'); return; }
+  const s = targetH / sz.y;
+  scene3D.scale.multiplyScalar(s);
+  scene3D.updateMatrixWorld(true);
+  const b2 = new THREE.Box3().setFromObject(scene3D);
+  scene3D.position.y -= b2.min.y; // ayakları y=0'a çek
+}
+
+/**
+ * Animasyon klibinden root-motion position track'lerini kaldır.
+ * Rotation/scale track'leri (karakter pozu) korunur.
+ */
+function removePositionTracks(clip) {
+  clip.tracks = clip.tracks.filter(t => !t.name.endsWith('.position'));
+  return clip;
+}
+
+// ——————————————————————————————————————————————
+// Arda Animasyon Sistemi
+// ——————————————————————————————————————————————
+let ardaMixer = null;
+const ardaActions = { idle: null, kick: null };
+let ardaCurrentAction = null;
+
+function ardaFadeTo(name, fadeDur = 0.2) {
+  const next = ardaActions[name];
+  if (!next) return;
+  next.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
+  if (ardaCurrentAction && ardaCurrentAction !== next)
+    ardaCurrentAction.crossFadeTo(next, fadeDur, true);
+  ardaCurrentAction = next;
+}
+
+// ——————————————————————————————————————————————
+// Kaleci Animasyon Sistemi
+// ——————————————————————————————————————————————
+let keeperMixer = null;
+const keeperActions = {
+  idle:           null,
+  dive_left:      null,
+  dive_right:     null,
+  save_low_left:  null,
+  save_low_right: null,
+  sidestep_left:  null,
+  sidestep_right: null,
+};
+let keeperCurrentAction = null;
+
+function keeperFadeTo(name, fadeDur = 0.25) {
+  const next = keeperActions[name];
+  if (!next) {
+    console.warn('[keeperFadeTo] Animasyon bulunamadı:', name);
+    if (name !== 'idle' && keeperActions.idle) keeperFadeTo('idle', fadeDur);
+    return;
+  }
+  if (keeperCurrentAction === next) return;
+  next.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
+  if (keeperCurrentAction)
+    keeperCurrentAction.crossFadeTo(next, fadeDur, true);
+  keeperCurrentAction = next;
+}
+
+/**
+ * Şut yönüne göre kaleci animasyonu seç.
+ * side: 'left' | 'center' | 'right'  (dosya adlarıyla birebir eşleşir)
+ * row:  0=üst  1=orta  2=alt
+ */
+function pickKeeperAnimation(side, row) {
+  if (side === 'center') return Math.random() < 0.5 ? 'sidestep_left' : 'sidestep_right';
+  if (row === 2) return side === 'left' ? 'save_low_left' : 'save_low_right';
+  return side === 'left' ? 'dive_left' : 'dive_right';
+}
+
+// ——————————————————————————————————————————————
+// Three.js Sahne Kurulumu
+// ——————————————————————————————————————————————
+let tg = null;
+try { tg=window.Telegram?.WebApp; if(tg){tg.ready();tg.expand();tg.setHeaderColor('#061208');} } catch(e) {}
+
+const canvas = document.getElementById('c');
+const fx     = document.getElementById('fx');
+const fctx   = fx.getContext('2d');
+
+let W = innerWidth, H = innerHeight;
+let renderer, camera;
+
+function size() {
+  W=innerWidth; H=innerHeight;
+  canvas.width=W; canvas.height=H;
+  fx.width=W; fx.height=H;
+  if(renderer) renderer.setSize(W,H,false);
+  if(camera){
+    camera.aspect=W/H;
+    camera.fov = H > W ? 55 : 38;
+    camera.updateProjectionMatrix();
+  }
+}
+addEventListener('resize', size);
+
+const DIST      = 11;
+const GW        = 11.5;
+const GH        = 3.0;
+const GOAL_YMIN = 1.8;
+const GZ        = -DIST;
+const BALL_R    = 0.11;
+
+const scene = new THREE.Scene();
+scene.background = null;
+scene.fog = null;
+
+camera = new THREE.PerspectiveCamera(38, W/H, 0.1, 200);
+camera.position.set(0, 0.85, 5.5);
+camera.lookAt(0, 1.5, GZ);
+
+renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setSize(W, H, false);
+renderer.shadowMap.enabled = false;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const amb = new THREE.AmbientLight(0xffffff, 0.75);
+scene.add(amb);
+const sun = new THREE.DirectionalLight(0xfff5e6, 1.0);
+sun.position.set(-8, 22, 12);
+sun.castShadow = false;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xaaccff, 0.22);
+fill.position.set(10, 8, -5);
+scene.add(fill);
+
+// Zemin (görünmez — bg.png tüm ekranı kaplar)
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(120, 120),
+  new THREE.MeshStandardMaterial({color:0x3d7228,roughness:0.9,metalness:0,transparent:true,opacity:0.0,depthWrite:false})
+);
+ground.rotation.x = -Math.PI/2;
+scene.add(ground);
+
+// Penaltı noktası & çizgisi
+const lineMat = new THREE.MeshBasicMaterial({color:0xffffff});
+const spot = new THREE.Mesh(new THREE.CircleGeometry(0.22, 32), lineMat);
+spot.rotation.x = -Math.PI/2;
+spot.position.set(0, 0.02, 0);
+scene.add(spot);
+const pa = new THREE.Mesh(new THREE.PlaneGeometry(9.15, 0.12), lineMat);
+pa.rotation.x = -Math.PI/2;
+pa.position.set(0, 0.02, -5.5);
+scene.add(pa);
+
+// Kale düzlemi (raycast için)
+const goalPlane = new THREE.Plane(new THREE.Vector3(0,0,1), -GZ);
+const raycaster = new THREE.Raycaster();
+const ndc       = new THREE.Vector2();
+const hitPt     = new THREE.Vector3();
+
+function worldFromCell(row, col) {
+  const cw=GW/3, ch=GH/3;
+  return new THREE.Vector3(-GW/2+cw*(col+0.5), GOAL_YMIN+ch*((2-row)+0.5), GZ+0.02);
+}
+
+let hoverCell = {r:-1, c:-1};
+const hiGroup = new THREE.Group();
+scene.add(hiGroup);
+
+function buildHiMeshes() {
+  while(hiGroup.children.length) hiGroup.remove(hiGroup.children[0]);
+  const cw=GW/3, ch=GH/3;
+  const mat = new THREE.MeshBasicMaterial({color:0xffd700,transparent:true,opacity:0,depthWrite:false});
+  for(let r=0;r<3;r++) for(let c=0;c<3;c++){
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(cw-0.12,ch-0.12),mat.clone());
+    m.position.set(-GW/2+cw*(c+0.5),GOAL_YMIN+ch*(2-r)+ch/2,GZ+0.04);
+    m.userData={r,c};
+    hiGroup.add(m);
+  }
+}
+buildHiMeshes();
+const hiMeshes = hiGroup.children;
+
+// Referanslar (boot() sonrası dolar)
+let ballMesh, ardaRoot, keeperRoot, bgMesh;
+
+function easeOutCubic(t){return 1-Math.pow(1-t,3);}
+function easeInOut(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+
+// ——————————————————————————————————————————————
+// Oyun Durumu
+// ——————————————————————————————————————————————
+let kState = {phase:'idle', t:0, sx:0, tx:0, srot:0, trot:0, saved:false};
+let ballAnim = {active:false, t:0, dur:0.58, p0:null, p1:null, p2:null};
+
+const TOTAL = 5;
+const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡","Aglari salladi! 🌊"];
+const MMSG=["Kaleci tuttu! 🧤","Az kaldi! 😅","Direkce carpti!","Kacti! 😬","Kaleci sezdi! 👀","Kurtaris! 🙌"];
+const COLORS=['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'];
+
+let goals=0, misses=0, shots=0, gameActive=false, canShoot=true;
+let particles=[], confetti=[];
+let assetsReady=false;
+
+function startGame(){
+  const st=document.getElementById('start');
+  if(st) st.style.display='none';
+  gameActive=true; canShoot=true;
+}
+window.startGame=startGame;
+document.getElementById('btnStart')?.addEventListener('click',(e)=>{e.preventDefault();startGame();});
+
+function setHiOpacity(r,c,op){
+  hiMeshes.forEach(m=>{const u=m.userData; m.material.opacity=(r>=0&&u.r===r&&u.c===c)?op:0;});
+}
+
+function updateHover(clientX,clientY){
+  if(!gameActive||!canShoot){setHiOpacity(-1,-1,0);return;}
+  ndc.x=(clientX/W)*2-1; ndc.y=-(clientY/H)*2+1;
+  raycaster.setFromCamera(ndc,camera);
+  if(!raycaster.ray.intersectPlane(goalPlane,hitPt)){setHiOpacity(-1,-1,0);hoverCell={r:-1,c:-1};return;}
+  if(hitPt.x<-GW/2||hitPt.x>GW/2||hitPt.y<GOAL_YMIN||hitPt.y>GOAL_YMIN+GH){setHiOpacity(-1,-1,0);hoverCell={r:-1,c:-1};return;}
+  const cw=GW/3,ch=GH/3;
+  const c=Math.min(2,Math.max(0,Math.floor((hitPt.x+GW/2)/cw)));
+  const r=2-Math.min(2,Math.max(0,Math.floor((hitPt.y-GOAL_YMIN)/ch)));
+  hoverCell={r,c}; setHiOpacity(r,c,0.28);
+}
+
+function shoot(row,col){
+  if(!assetsReady||!ballMesh||!canShoot||!gameActive)return;
+  canShoot=false;
+  document.getElementById('banner').style.display='none';
+  setHiOpacity(-1,-1,0);
+
+  const target=worldFromCell(row,col);
+  const rand=Math.random();
+  let side;
+  if(col===0)      side=rand<0.5?'left':(rand<0.75?'center':'right');
+  else if(col===2) side=rand<0.5?'right':(rand<0.75?'center':'left');
+  else             side=rand<0.33?'left':(rand<0.66?'center':'right');
+
+  const animName=pickKeeperAnimation(side, row);
+  const sideX={left:-GW*0.18, center:0, right:GW*0.18};
+  const lean=(side==='left'?0.10:(side==='right'?-0.10:0));
+
+  const colMap={0:'left',1:'center',2:'right'};
+  let saved=false;
+  if(side===colMap[col]){
+    if(row===0&&col!==1) saved=Math.random()<0.2;
+    else if(row===0)     saved=Math.random()<0.3;
+    else                 saved=Math.random()<0.58;
+  } else saved=Math.random()<0.04;
+
+  kState={phase:'dive', t:0, sx:keeperRoot.position.x, tx:sideX[side], srot:keeperRoot.rotation.z, trot:lean, saved};
+  keeperFadeTo(animName);
+
+  ardaFadeTo('kick', 0.12);
+
+  const p0=ballMesh.position.clone();
+  const p2=new THREE.Vector3(target.x,target.y,target.z);
+  const mid=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
+  mid.y+=2.05+Math.random()*0.35;
+  ballAnim={active:true, t:0, dur:0.58, p0, p1:mid, p2};
+
+  setTimeout(()=>onLand(saved,target),560);
+}
+
+function onLand(saved,worldTarget){
+  shots++;
+  const dot=document.getElementById('dot-'+(shots-1));
+  const wvec=worldTarget.clone(); wvec.project(camera);
+  const px=(wvec.x*0.5+0.5)*W, py=(-wvec.y*0.5+0.5)*H;
+  if(!saved){
+    goals++; document.getElementById('sGoal').textContent=goals;
+    if(dot) dot.classList.add('goal');
+    spawnParts(px,py); spawnConfetti(px,py-H*0.06);
+    showResult(true);
+  } else {
+    misses++; document.getElementById('sMiss').textContent=misses;
+    if(dot) dot.classList.add('miss');
+    showResult(false);
+  }
+  document.getElementById('sRemain').textContent=TOTAL-shots;
+}
+
+function showResult(isGoal){
+  const ov=document.getElementById('result');
+  document.getElementById('rEmoji').textContent=isGoal?'⚽':'🧤';
+  const rt=document.getElementById('rTxt');
+  rt.textContent=isGoal?'GOL!':'TUTUDU!';
+  rt.className='rtxt '+(isGoal?'gt':'mt');
+  document.getElementById('rSub').textContent=(isGoal?GMSG:MMSG)[Math.floor(Math.random()*(isGoal?GMSG:MMSG).length)];
+  ov.classList.add('show');
+  setTimeout(()=>{
+    ov.classList.remove('show');
+    if(!assetsReady)return;
+    ballMesh.position.set(0,BALL_R,0);
+    ballAnim.active=false;
+    ardaFadeTo('idle', 0.3);
+    kState={phase:'return', t:0, sx:keeperRoot.position.x, srot:keeperRoot.rotation.z, saved:kState.saved};
+    keeperFadeTo('idle', 0.5);
+  },1600);
+}
+
+function resetRoundVisuals(){
+  if(!assetsReady)return;
+  ballMesh.position.set(0,BALL_R,0);
+  ballAnim.active=false;
+  ardaFadeTo('idle', 0.1);
+}
+
+function resetPositions(){
+  resetRoundVisuals();
+  if(ardaRoot){ ardaRoot.position.set(0,0,0.55); ardaRoot.rotation.set(0,Math.PI,0); }
+  if(keeperRoot){ keeperRoot.position.set(0,GOAL_YMIN,GZ+0.35); keeperRoot.rotation.set(0,0,0); }
+  keeperFadeTo('idle', 0.1);
+  kState={phase:'idle',t:0,sx:0,tx:0,srot:0,trot:0,saved:false};
+}
+
+function showFinal(){
+  const pct=goals/TOTAL;
+  const t=document.getElementById('fTrophy'),ti=document.getElementById('fTitle'),m=document.getElementById('fMsg');
+  document.getElementById('fScore').textContent=goals+'/'+TOTAL+' GOL';
+  if(pct===1)      {t.textContent='🏆';ti.textContent='MUKEMMEL!';ti.style.color='#FFD700';m.textContent='Tum penaltilari gol yaptin!';}
+  else if(pct>=0.8){t.textContent='🥇';ti.textContent='HARIKA!';ti.style.color='#FFD700';m.textContent='Cok iyi!';}
+  else if(pct>=0.6){t.textContent='⭐';ti.textContent='IYI!';ti.style.color='#4FC3F7';m.textContent='Guzel oyun!';}
+  else if(pct>=0.4){t.textContent='💪';ti.textContent='DEVAM ET!';ti.style.color='#FF9800';m.textContent='Rovans ver!';}
+  else             {t.textContent='😅';ti.textContent='OLMADI!';ti.style.color='#FF5252';m.textContent='Bu sefer kaleci kazandi!';}
+  document.getElementById('final').classList.add('show');
+  gameActive=false;
+  spawnConfetti(W/2,H*0.35);
+  if(tg){try{tg.sendData(JSON.stringify({game:'penalti',goals,misses,total:TOTAL}));}catch(e){}}
+}
+
+function resetGame(){
+  if(!assetsReady)return;
+  goals=0;misses=0;shots=0;canShoot=true;gameActive=true;
+  document.getElementById('sGoal').textContent='0';
+  document.getElementById('sMiss').textContent='0';
+  document.getElementById('sRemain').textContent=TOTAL;
+  document.getElementById('final').classList.remove('show');
+  document.getElementById('banner').style.display='';
+  particles=[];confetti=[];
+  buildDots(); resetPositions();
+}
+window.resetGame=resetGame;
+
+window.shareResult=function(){
+  const txt='Pusulabet Penalti: '+goals+'/'+TOTAL+' gol! @pusulasocial';
+  if(tg&&tg.openTelegramLink)tg.openTelegramLink('https://t.me/share/url?url=https://t.me/pusulabetgame_bot/penalti&text='+encodeURIComponent(txt));
+  else if(navigator.share)navigator.share({text:txt});
+};
+
+function buildDots(){
+  const cont=document.getElementById('dots');cont.innerHTML='';
+  for(let i=0;i<TOTAL;i++){const d=document.createElement('div');d.className='dot';d.id='dot-'+i;cont.appendChild(d);}
+}
+
+function spawnParts(cx,cy){
+  for(let i=0;i<32;i++){
+    const a=Math.random()*Math.PI*2,s=1.5+Math.random()*5;
+    particles.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,decay:0.02+Math.random()*0.02,r:2+Math.random()*5,col:Math.random()<0.5?'#00E676':'#FFD700'});
+  }
+}
+function spawnConfetti(cx,cy){
+  for(let i=0;i<70;i++){
+    const a=(Math.random()-0.5)*Math.PI*1.5-Math.PI/2,s=4+Math.random()*11;
+    confetti.push({x:cx,y:cy,vx:Math.cos(a)*s+(Math.random()-0.5)*4,vy:Math.sin(a)*s,w:4+Math.random()*8,h:3+Math.random()*5,rot:Math.random()*Math.PI*2,rotV:(Math.random()-0.5)*0.35,life:1,decay:0.008+Math.random()*0.008,col:COLORS[Math.floor(Math.random()*COLORS.length)]});
+  }
+}
+
+function drawFx(){
+  fctx.clearRect(0,0,W,H);
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.18;p.life-=p.decay;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    fctx.globalAlpha=p.life;fctx.fillStyle=p.col;fctx.beginPath();fctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);fctx.fill();
+  }
+  for(let i=confetti.length-1;i>=0;i--){
+    const c=confetti[i];c.x+=c.vx;c.y+=c.vy;c.vy+=0.28;c.vx*=0.99;c.rot+=c.rotV;c.life-=c.decay;
+    if(c.life<=0){confetti.splice(i,1);continue;}
+    fctx.save();fctx.globalAlpha=c.life;fctx.translate(c.x,c.y);fctx.rotate(c.rot);fctx.fillStyle=c.col;fctx.fillRect(-c.w/2,-c.h/2,c.w,c.h);fctx.restore();
+  }
+  fctx.globalAlpha=1;
+}
+
+// ——————————————————————————————————————————————
+// Input
+// ——————————————————————————————————————————————
+canvas.addEventListener('mousemove',e=>{if(gameActive&&canShoot)updateHover(e.clientX,e.clientY);});
+canvas.addEventListener('click',e=>{
+  if(!gameActive||!canShoot)return;
+  updateHover(e.clientX,e.clientY);
+  if(hoverCell.r>=0)shoot(hoverCell.r,hoverCell.c);
+});
+canvas.addEventListener('touchstart',e=>{
+  if(!gameActive||!canShoot)return;
+  const t=e.touches[0];
+  updateHover(t.clientX,t.clientY);
+  if(hoverCell.r>=0){e.preventDefault();shoot(hoverCell.r,hoverCell.c);}
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  if(!gameActive||!canShoot)return;
+  updateHover(e.touches[0].clientX,e.touches[0].clientY);
+},{passive:true});
+
+// ——————————————————————————————————————————————
+// Ana Döngü
+// ——————————————————————————————————————————————
+let lastT=0;
+function loop(ts){
+  const dt=Math.min((ts-lastT)/1000,0.05); lastT=ts;
+
+  if(!assetsReady){
+    renderer.render(scene,camera); drawFx();
+    requestAnimationFrame(loop); return;
+  }
+
+  // AnimationMixer güncelle
+  if(ardaMixer)   ardaMixer.update(dt);
+  if(keeperMixer) keeperMixer.update(dt);
+
+  // Top Bezier hareketi
+  if(ballAnim.active){
+    ballAnim.t+=dt;
+    const u=Math.min(ballAnim.t/ballAnim.dur,1);
+    const e=easeInOut(u);
+    const {p0,p1,p2}=ballAnim;
+    ballMesh.position.x=(1-e)*(1-e)*p0.x+2*(1-e)*e*p1.x+e*e*p2.x;
+    ballMesh.position.y=(1-e)*(1-e)*p0.y+2*(1-e)*e*p1.y+e*e*p2.y;
+    ballMesh.position.z=(1-e)*(1-e)*p0.z+2*(1-e)*e*p1.z+e*e*p2.z;
+    ballMesh.rotation.x+=14*dt; ballMesh.rotation.z+=10*dt;
+    if(u>=1){ballAnim.active=false;ballMesh.scale.setScalar(1);}
+  }
+
+  // Kaleci root-grup pozisyon animasyonu
+  if(kState.phase==='dive'){
+    kState.t+=dt;
+    const T=0.42, u=Math.min(kState.t/T,1), e=easeOutCubic(u);
+    keeperRoot.position.x=kState.sx+(kState.tx-kState.sx)*e;
+    keeperRoot.rotation.z=kState.srot+(kState.trot-kState.srot)*e;
+    keeperRoot.position.y=GOAL_YMIN+Math.sin(u*Math.PI)*0.18*e;
+    if(u>=1) kState.phase='hold';
+
+  } else if(kState.phase==='hold'){
+    kState.t+=dt;
+    if(kState.saved){
+      keeperRoot.position.y=GOAL_YMIN+0.1;
+    } else {
+      const sag=Math.min(kState.t/0.35,1);
+      keeperRoot.position.y=GOAL_YMIN+0.18*(1-sag);
+    }
+
+  } else if(kState.phase==='return'){
+    kState.t+=dt;
+    const T=0.55, u=Math.min(kState.t/T,1), e=easeInOut(u);
+    keeperRoot.position.x=kState.sx*(1-e);
+    keeperRoot.rotation.z=kState.srot*(1-e);
+    keeperRoot.position.y=GOAL_YMIN;
+    if(u>=1){
+      kState.phase='idle';
+      keeperRoot.position.set(0,GOAL_YMIN,GZ+0.35);
+      keeperRoot.rotation.set(0,0,0);
+      if(shots>=TOTAL) setTimeout(showFinal,80);
+      else{canShoot=true;document.getElementById('banner').style.display='';}
+    }
+
+  } else {
+    // idle
+    keeperRoot.position.x=Math.sin(ts*0.0014)*0.05;
+    keeperRoot.position.y=GOAL_YMIN;
+  }
+
+  renderer.render(scene,camera); drawFx();
+  requestAnimationFrame(loop);
+}
+
+// ——————————————————————————————————————————————
+// Arkaplan
+// ——————————————————————————————————————————————
+function addBackgroundIfNeeded(bgT){
+  if(bgMesh)return;
+  const bgH=20,bgW=30,bgZ=-12,bgCenterY=1.6;
+  bgMesh=new THREE.Mesh(
+    new THREE.PlaneGeometry(bgW,bgH),
+    new THREE.MeshBasicMaterial({map:bgT,depthWrite:false,depthTest:false})
+  );
+  bgMesh.position.set(0,bgCenterY,bgZ);
+  bgMesh.renderOrder=-500;
+  scene.add(bgMesh);
+}
+
+const textureLoader=new THREE.TextureLoader();
+textureLoader.setCrossOrigin('anonymous');
+
+// ——————————————————————————————————————————————
+// boot() — GLB karakterleri yükle, sahneyi hazırla
+// ——————————————————————————————————————————————
+async function boot(){
+  console.log('[boot] GLB karakter sistemi başlatılıyor...');
+  try {
+
+    // 1. Top texture
+    const ballT=await new Promise((res,rej)=>textureLoader.load(CFG.ASSETS.ball,res,undefined,rej));
+    ballT.colorSpace=THREE.SRGBColorSpace;
+    ballMesh=new THREE.Mesh(
+      new THREE.SphereGeometry(BALL_R,32,32),
+      new THREE.MeshStandardMaterial({map:ballT,roughness:0.35,metalness:0.05})
+    );
+    ballMesh.castShadow=false;
+    ballMesh.position.set(0,BALL_R,0);
+    scene.add(ballMesh);
+    console.log('[boot] Top OK');
+
+    // 2. Tüm GLB paralel yükle
+    const [
+      ardaKickGltf, ardaIdleGltf,
+      keeperIdleGltf,
+      keeperDiveLGltf, keeperDiveRGltf,
+      keeperSaveLLGltf, keeperSaveLRGltf,
+      keeperStepLGltf, keeperStepRGltf,
+    ] = await Promise.all([
+      loadGLB(CFG.ASSETS.glb.arda_kick),
+      loadGLB(CFG.ASSETS.glb.arda_idle),
+      loadGLB(CFG.ASSETS.glb.keeper_idle),
+      loadGLB(CFG.ASSETS.glb.keeper_dive_left),
+      loadGLB(CFG.ASSETS.glb.keeper_dive_right),
+      loadGLB(CFG.ASSETS.glb.keeper_save_low_left),
+      loadGLB(CFG.ASSETS.glb.keeper_save_low_right),
+      loadGLB(CFG.ASSETS.glb.keeper_sidestep_left),
+      loadGLB(CFG.ASSETS.glb.keeper_sidestep_right),
+    ]);
+    console.log('[boot] Tüm GLB yüklendi ✓');
+
+    // ——————————————————————————————
+    // Arda Güler kurulumu
+    // ——————————————————————————————
+    const ardaKickScene = ardaKickGltf.scene;
+    normalizeGLB(ardaKickScene, CFG.ARDA_HEIGHT);
+    ardaKickScene.traverse(c=>{ if(c.isMesh){ c.castShadow=false; c.receiveShadow=false; } });
+
+    ardaRoot=new THREE.Group();
+    ardaRoot.add(ardaKickScene);
+    ardaRoot.position.set(0,0,0.55);
+    ardaRoot.rotation.y=Math.PI; // Mixamo +Z → kaleye bakıyor
+    ardaRoot.renderOrder=10;
+    scene.add(ardaRoot);
+
+    ardaMixer=new THREE.AnimationMixer(ardaKickScene);
+
+    // Kick animasyonu (aynı GLB'den)
+    if(ardaKickGltf.animations.length>0){
+      const kickClip=ardaKickGltf.animations[0];
+      removePositionTracks(kickClip); kickClip.name='kick';
+      ardaActions.kick=ardaMixer.clipAction(kickClip);
+      ardaActions.kick.setLoop(THREE.LoopOnce,1);
+      ardaActions.kick.clampWhenFinished=true;
+    } else console.warn('[boot] arda_kick.glb animasyon içermiyor');
+
+    // Idle animasyonu (farklı GLB, aynı iskelet varsayımı)
+    if(ardaIdleGltf.animations.length>0){
+      const idleClip=ardaIdleGltf.animations[0];
+      removePositionTracks(idleClip); idleClip.name='arda_idle';
+      ardaActions.idle=ardaMixer.clipAction(idleClip);
+      ardaActions.idle.setLoop(THREE.LoopRepeat,Infinity);
+      ardaActions.idle.play();
+      ardaCurrentAction=ardaActions.idle;
+    } else console.warn('[boot] arda_idle.glb animasyon içermiyor');
+
+    // ——————————————————————————————
+    // Kaleci kurulumu
+    // ——————————————————————————————
+    const keeperIdleScene = keeperIdleGltf.scene;
+    normalizeGLB(keeperIdleScene, CFG.KEEPER_HEIGHT);
+    keeperIdleScene.traverse(c=>{ if(c.isMesh){ c.castShadow=false; c.receiveShadow=false; } });
+
+    keeperRoot=new THREE.Group();
+    keeperRoot.add(keeperIdleScene);
+    keeperRoot.position.set(0,GOAL_YMIN,GZ+0.35);
+    keeperRoot.rotation.y=0; // Mixamo +Z → kameraya bakıyor
+    keeperRoot.renderOrder=8;
+    scene.add(keeperRoot);
+
+    keeperMixer=new THREE.AnimationMixer(keeperIdleScene);
+
+    // Yardımcı: GLTF'ten clip ayıkla ve keeperActions'a ekle
+    function addKeeperClip(gltf, name, loop=THREE.LoopOnce){
+      if(!gltf.animations.length){console.warn('[boot] Animasyon yok:', name);return;}
+      const clip=gltf.animations[0];
+      removePositionTracks(clip); clip.name=name;
+      const action=keeperMixer.clipAction(clip);
+      action.setLoop(loop, loop===THREE.LoopOnce?1:Infinity);
+      if(loop===THREE.LoopOnce) action.clampWhenFinished=true;
+      keeperActions[name]=action;
+    }
+
+    addKeeperClip(keeperIdleGltf,  'idle',           THREE.LoopRepeat);
+    addKeeperClip(keeperDiveLGltf,  'dive_left');
+    addKeeperClip(keeperDiveRGltf,  'dive_right');
+    addKeeperClip(keeperSaveLLGltf, 'save_low_left');
+    addKeeperClip(keeperSaveLRGltf, 'save_low_right');
+    addKeeperClip(keeperStepLGltf,  'sidestep_left');
+    addKeeperClip(keeperStepRGltf,  'sidestep_right');
+
+    // Idle ile başla
+    if(keeperActions.idle){
+      keeperActions.idle.play();
+      keeperCurrentAction=keeperActions.idle;
+    }
+
+    // ——————————————————————————————
+    assetsReady=true;
+    console.log('[boot] assetsReady=true — GLB karakterler sahneye eklendi ✓');
+    console.log('[boot] Arda actions:', Object.keys(ardaActions).filter(k=>ardaActions[k]));
+    console.log('[boot] Keeper actions:', Object.keys(keeperActions).filter(k=>keeperActions[k]));
+    size(); buildDots(); resetPositions();
+
+    // Arkaplan (gecikirse oyun devam eder)
+    try{
+      const bgT=await new Promise((res,rej)=>textureLoader.load(CFG.ASSETS.bg,res,undefined,rej));
+      bgT.colorSpace=THREE.SRGBColorSpace;
+      addBackgroundIfNeeded(bgT);
+      console.log('[boot] bg OK');
+    } catch(bgErr){
+      console.error('[boot] bg yüklenemedi (oyun devam eder)',bgErr);
+    }
+
+  } catch(err){
+    console.error('[boot] Kritik yükleme hatası',err);
+    const d=document.createElement('div');
+    d.style.cssText='position:fixed;bottom:12px;left:12px;right:12px;max-width:520px;margin:auto;background:#1a1a1a;color:#ffb74d;padding:12px 16px;border-radius:10px;font:14px/1.4 sans-serif;z-index:9999;border:1px solid #444';
+    d.textContent='GLB yükleme hatası: '+String(err?.message||err)+' — assets/ klasörünü kontrol edin.';
+    document.body.appendChild(d);
+  }
+}
+
+size();
+buildDots();
+requestAnimationFrame(loop);
+boot();
+</script>
+</body>
+</html>
