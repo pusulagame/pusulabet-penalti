@@ -102,16 +102,28 @@ try{tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();tg.setHeaderColor('
 
 const canvas=document.getElementById('c');
 const ctx=canvas.getContext('2d');
-let W,H,scaleX,scaleY;
+let W,H;
 
-// Referans çözünürlük (bg oranına göre)
+// Referans çözünürlük (bg.png ile aynı)
 const REF_W=1536, REF_H=1024;
+
+/** BG drawImage ile aynı: uniform scale + ortala (cover). Sprite/hesap koordinatları buna bağlı olmalı. */
+let coverT=null;
+function getCoverTransform(){
+  const iw=(bgImg.complete&&bgImg.naturalWidth)?bgImg.naturalWidth:REF_W;
+  const ih=(bgImg.complete&&bgImg.naturalHeight)?bgImg.naturalHeight:REF_H;
+  const s=Math.max(W/iw,H/ih);
+  const ox=(W-iw*s)/2, oy=(H-ih*s)/2;
+  return{s,ox,oy,iw,ih};
+}
+function refToCanvas(rx,ry){
+  const t=coverT||getCoverTransform();
+  return{x:t.ox+rx*t.s,y:t.oy+ry*t.s};
+}
 
 function resize(){
   W=canvas.width=window.innerWidth;
   H=canvas.height=window.innerHeight;
-  scaleX=W/REF_W;
-  scaleY=H/REF_H;
 }
 resize();
 window.addEventListener('resize',resize);
@@ -141,12 +153,11 @@ let hoverCell={r:-1,c:-1};
 let particles=[],confetti=[];
 let netShake=0,netShakeDir=0;
 
-// Koordinat dönüştürme (responsive)
-function sx(x){return x*scaleX;}
-function sy(y){return y*scaleY;}
-
-// Kale rect (ekran koordinatı)
-function gr(){return{x:sx(GOAL.x),y:sy(GOAL.y),w:sx(GOAL.w),h:sy(GOAL.h)};}
+// Kale rect (ekran — bg ile aynı cover dönüşümü)
+function gr(){
+  const tl=refToCanvas(GOAL.x,GOAL.y), br=refToCanvas(GOAL.x+GOAL.w,GOAL.y+GOAL.h);
+  return{x:tl.x,y:tl.y,w:br.x-tl.x,h:br.y-tl.y};
+}
 
 // ── Kaleci ──
 let kp={
@@ -189,11 +200,11 @@ function drawKeeper(){
 }
 
 function updateKeeper(dt){
-  if(kp.phase==='idle')return;
+  if(kp.phase==='idle'||kp.phase==='hold')return;
   kp.t+=dt;
   const ease=t=>t<.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1;
   if(kp.phase==='diving'){
-    const p=Math.min(kp.t/0.32,1);
+    const p=Math.min(kp.t/0.36,1);
     kp.x=kp.startX+(kp.targetX-kp.startX)*ease(p);
     kp.frame=kp.targetFrame;
     if(p>=1)kp.phase='hold';
@@ -212,10 +223,9 @@ let pl={frame:0,x:0,y:0,displayW:0,displayH:0,phase:'idle',t:0};
 function initPlayer(){
   pl.displayW = Math.min(W,H)*0.30;
   pl.displayH = pl.displayW*(P_SH/P_SW);
-  pl.x = sx(PENALTY_SPOT.x);
-  // Ayaklar penaltı noktasında: sprite içinde ayak %75.3 aşağıda
-  // pl.y = ayak y konumu → drawImage y = pl.y - displayH*0.753
-  pl.y = sy(PENALTY_SPOT.y);
+  const spot=refToCanvas(PENALTY_SPOT.x,PENALTY_SPOT.y);
+  pl.x = spot.x;
+  pl.y = spot.y;
   pl.frame=0; pl.phase='idle'; pl.t=0;
 }
 
@@ -238,16 +248,14 @@ function drawPlayer(){
 }
 
 function updatePlayer(dt){
-  if(pl.phase==='idle')return;
+  if(pl.phase==='idle'||pl.phase==='done')return;
   pl.t+=dt;
   if(pl.phase==='running'){
-    const fi=Math.min(Math.floor(pl.t/0.12),2);
-    pl.frame=fi;
-    if(fi>=2){pl.phase='kicking';pl.t=0;}
-  }
-  if(pl.phase==='kicking'){
+    pl.frame=Math.min(Math.floor(pl.t/0.14),2);
+    if(pl.t>=0.42){pl.phase='kicking';pl.t=0;}
+  } else if(pl.phase==='kicking'){
     pl.frame=3;
-    if(pl.t>0.4)pl.phase='done';
+    if(pl.t>0.38)pl.phase='done';
   }
 }
 
@@ -256,9 +264,8 @@ let bl={x:0,y:0,r:0,scale:1,rot:0,rotV:0,phase:'idle',t:0,sx:0,sy2:0,tx:0,ty:0,d
 
 function initBall(){
   bl.r=Math.min(W,H)*0.034;
-  // Top penaltı noktasında
-  bl.x=sx(PENALTY_SPOT.x);
-  bl.y=sy(PENALTY_SPOT.y);
+  const spot=refToCanvas(PENALTY_SPOT.x,PENALTY_SPOT.y);
+  bl.x=spot.x; bl.y=spot.y;
   bl.scale=1;bl.rot=0;bl.rotV=0;bl.phase='idle';bl.t=0;
 }
 
@@ -523,6 +530,7 @@ function buildDots(){
 let lastT=0;
 function loop(ts){
   const dt=Math.min((ts-lastT)/1000,.05);lastT=ts;
+  coverT=getCoverTransform();
   ctx.clearRect(0,0,W,H);
 
   // BG — cover
