@@ -141,7 +141,11 @@ const P_SW=320, P_SH=853;
 
 // BG kale - piksel analizi kesin: sol=289 sag=1248 ust=83 alt=443
 const GOAL = { x:289, y:83, w:959, h:360 };
-const PENALTY_SPOT = { x:771, y:714 }; // penalti noktasi
+const PENALTY_SPOT = { x:771, y:714 }; // penalti noktasi (top)
+// Saha perspektifi: vurucu topun *arkasinda* (kameraya yakin) — ref uzayda +Y asagi
+const PLAYER_FEET_Y_REF = PENALTY_SPOT.y + 46;
+// Kale cizgisi gorselde GOAL alti ile hizali; sprite ayaklari zemine oturtmak icin ince ayar
+const KEEPER_FEET_Y_REF = GOAL.y + GOAL.h + 10;
 
 const TOTAL=5;
 const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡","Aglari salladi! 🌊"];
@@ -164,17 +168,18 @@ let kp={
   frame:0, x:0, y:0,
   displayW:0, displayH:0,
   phase:'idle', t:0,
-  startX:0, targetX:0, targetFrame:0
+  startX:0, targetX:0, targetFrame:0,
+  diveLean:0
 };
 
 function initKeeper(){
   const g=gr();
   kp.displayW = g.w * 0.24;
   kp.displayH = kp.displayW * (K_SH/K_SW);
-  kp.x = g.x + g.w/2;
-  // Ayaklar kale alt çizgisinde
-  kp.y = g.y + g.h;
-  kp.frame=0; kp.phase='idle'; kp.t=0;
+  const foot=refToCanvas(GOAL.x+GOAL.w/2, KEEPER_FEET_Y_REF);
+  kp.x = foot.x;
+  kp.y = foot.y;
+  kp.frame=0; kp.phase='idle'; kp.t=0; kp.diveLean=0;
 }
 
 function drawKeeper(){
@@ -182,38 +187,53 @@ function drawKeeper(){
   const kw=kp.displayW, kh=kp.displayH;
   const useFrame = kp.frame===3 ? 2 : kp.frame;
   const flip = kp.frame===3;
-  // drawY: sprite içinde ayak %63.4 aşağıda
-  const drawY = kp.y - kh*K_FOOT;
+  const footLocalY = -kh*K_FOOT;
 
   ctx.save();
-  ctx.globalAlpha=0.2;ctx.fillStyle='#000';
-  ctx.beginPath();ctx.ellipse(kp.x,kp.y,kw*0.3,kh*0.02,0,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=0.22;ctx.fillStyle='#000';
+  ctx.beginPath();ctx.ellipse(kp.x,kp.y+1,kw*0.32,kh*0.022,0,0,Math.PI*2);ctx.fill();
   ctx.globalAlpha=1;
 
-  if(flip){
-    ctx.translate(kp.x+kw/2,0);ctx.scale(-1,1);
-    ctx.drawImage(keeperImg,useFrame*K_SW,0,K_SW,K_SH,-kw,drawY,kw,kh);
-  } else {
-    ctx.drawImage(keeperImg,useFrame*K_SW,0,K_SW,K_SH,kp.x-kw/2,drawY,kw,kh);
-  }
+  // Ayak (kp.x,kp.y) sabit; yatay cevirme dikey ekseni bozmasin diye translate(kp.x,kp.y)
+  ctx.translate(kp.x,kp.y);
+  ctx.rotate(kp.diveLean);
+  ctx.scale(flip?-1:1,1);
+  ctx.drawImage(keeperImg,useFrame*K_SW,0,K_SW,K_SH,-kw/2,footLocalY,kw,kh);
   ctx.restore();
 }
 
 function updateKeeper(dt){
-  if(kp.phase==='idle'||kp.phase==='hold')return;
+  if(kp.phase==='idle'){
+    kp.diveLean=0;
+    return;
+  }
+  if(kp.phase==='hold'){
+    kp.diveLean*=0.9;
+    return;
+  }
   kp.t+=dt;
   const ease=t=>t<.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1;
+  const easeOut=t=>1-(1-t)*(1-t);
   if(kp.phase==='diving'){
-    const p=Math.min(kp.t/0.36,1);
+    const dur=0.44;
+    const p=Math.min(kp.t/dur,1);
     kp.x=kp.startX+(kp.targetX-kp.startX)*ease(p);
-    kp.frame=kp.targetFrame;
-    if(p>=1)kp.phase='hold';
+    // Onceden hafif gerginlik, sonra hedef kare (atlama bozulmasin)
+    if(p<0.12) kp.frame=0;
+    else kp.frame=kp.targetFrame;
+    kp.diveLean=(kp.targetX-kp.startX)*0.00014*easeOut(p);
+    if(p>=1){kp.phase='hold';kp.diveLean=(kp.targetX-kp.startX)*0.00012;}
   }
   if(kp.phase==='back'){
-    const g=gr(), cx=g.x+g.w/2;
-    const p=Math.min(kp.t/0.65,1);
-    kp.x=kp.startX+(cx-kp.startX)*(1-(1-p)*(1-p));
-    if(p>=1){kp.phase='idle';kp.frame=0;kp.x=cx;}
+    const cx=refToCanvas(GOAL.x+GOAL.w/2, KEEPER_FEET_Y_REF).x;
+    const p=Math.min(kp.t/0.58,1);
+    kp.x=kp.startX+(cx-kp.startX)*easeOut(p);
+    kp.diveLean*=0.92;
+    if(p>=1){
+      kp.phase='idle';kp.frame=0;kp.x=cx;kp.diveLean=0;
+      const foot=refToCanvas(GOAL.x+GOAL.w/2, KEEPER_FEET_Y_REF);
+      kp.y=foot.y;
+    }
   }
 }
 
@@ -223,9 +243,9 @@ let pl={frame:0,x:0,y:0,displayW:0,displayH:0,phase:'idle',t:0};
 function initPlayer(){
   pl.displayW = Math.min(W,H)*0.30;
   pl.displayH = pl.displayW*(P_SH/P_SW);
-  const spot=refToCanvas(PENALTY_SPOT.x,PENALTY_SPOT.y);
-  pl.x = spot.x;
-  pl.y = spot.y;
+  const feet=refToCanvas(PENALTY_SPOT.x, PLAYER_FEET_Y_REF);
+  pl.x = feet.x;
+  pl.y = feet.y;
   pl.frame=0; pl.phase='idle'; pl.t=0;
 }
 
@@ -251,11 +271,12 @@ function updatePlayer(dt){
   if(pl.phase==='idle'||pl.phase==='done')return;
   pl.t+=dt;
   if(pl.phase==='running'){
-    pl.frame=Math.min(Math.floor(pl.t/0.14),2);
-    if(pl.t>=0.42){pl.phase='kicking';pl.t=0;}
+    const step=0.11;
+    pl.frame=(Math.floor(pl.t/step))%3;
+    if(pl.t>=0.52){pl.phase='kicking';pl.t=0;}
   } else if(pl.phase==='kicking'){
     pl.frame=3;
-    if(pl.t>0.38)pl.phase='done';
+    if(pl.t>0.36)pl.phase='done';
   }
 }
 
@@ -559,13 +580,12 @@ function loop(ts){
   // Parçacıklar
   drawParticles();
 
-  // Top
-  updateBall(dt);
-  drawBall();
-
-  // Oyuncu (en önde)
+  // Oyuncu, sonra top (top kaleye dogru oyuncunun onunde)
   updatePlayer(dt);
   drawPlayer();
+
+  updateBall(dt);
+  drawBall();
 
   requestAnimationFrame(loop);
 }
