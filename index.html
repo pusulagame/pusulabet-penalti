@@ -45,7 +45,7 @@ body{background:#061208;overflow:hidden;height:100dvh;width:100vw;font-family:'R
 .btnP:active{transform:scale(.97);}
 .btnS{background:transparent;color:rgba(255,255,255,.5);font-size:14px;border:1px solid rgba(255,255,255,.15);border-radius:50px;padding:10px 28px;cursor:pointer;width:100%;margin-top:8px;pointer-events:all;}
 #start{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:48px;}
-.sbg{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.92) 0%,rgba(0,0,0,.15) 55%,transparent 100%);}
+.sbg{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.92) 0%,rgba(0,0,0,.15) 55%,transparent 100%);pointer-events:none;}
 .scard{position:relative;z-index:1;text-align:center;width:90%;max-width:340px;}
 .sbrand{font-family:'Bebas Neue',cursive;font-size:12px;letter-spacing:6px;color:#FF6B00;margin-bottom:4px;}
 .stitle{font-family:'Bebas Neue',cursive;font-size:64px;color:#fff;line-height:.9;letter-spacing:2px;text-shadow:0 4px 32px rgba(0,0,0,.9);margin-bottom:10px;}
@@ -96,7 +96,7 @@ body{background:#061208;overflow:hidden;height:100dvh;width:100vw;font-family:'R
         <div class="ri"><div class="ric">🥅</div><span class="rit">9 Kose</span></div>
         <div class="ri"><div class="ric">✨</div><span class="rit">Sprite</span></div>
       </div>
-      <button class="btnP" onclick="startGame()" style="font-size:26px;padding:16px;pointer-events:all;">⚽ BASLAT</button>
+      <button type="button" class="btnP" id="btnStart" style="font-size:26px;padding:16px;pointer-events:all;">⚽ BASLAT</button>
     </div>
   </div>
 </div>
@@ -104,13 +104,18 @@ body{background:#061208;overflow:hidden;height:100dvh;width:100vw;font-family:'R
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
+/** index.html ile ayni klasordeki assets/ — file:// ve https uyumlu */
+function resolveAsset(relPath){
+  return new URL(relPath, import.meta.url).href;
+}
+
 // —— Asset / sprite config ——
 const CFG = {
   ASSETS: {
-    bg: 'assets/bg.png',
-    ball: 'assets/ball.png',
-    player: 'assets/arda.png',
-    keeper: 'assets/keeper.png',
+    bg: resolveAsset('assets/bg.png'),
+    ball: resolveAsset('assets/ball.png'),
+    player: resolveAsset('assets/arda.png'),
+    keeper: resolveAsset('assets/keeper.png'),
   },
   playerFrameWidth: 256,
   playerFrameHeight: 384,
@@ -162,6 +167,7 @@ const GZ=-DIST;
 const BALL_R=0.11;
 
 const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d2818);
 scene.fog=new THREE.Fog(0x1a3d28,40,120);
 
 const camera=new THREE.PerspectiveCamera(40,W/H,0.1,200);
@@ -301,6 +307,16 @@ const COLORS=['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'
 
 let goals=0,misses=0,shots=0,gameActive=false,canShoot=true;
 let particles=[],confetti=[];
+let assetsReady=false;
+
+function startGame(){
+  const st=document.getElementById('start');
+  if(st) st.style.display='none';
+  gameActive=true;
+  canShoot=true;
+}
+window.startGame=startGame;
+document.getElementById('btnStart')?.addEventListener('click',(e)=>{ e.preventDefault(); startGame(); });
 
 function setHiOpacity(r,c,op){
   hiMeshes.forEach(m=>{
@@ -329,7 +345,7 @@ function billboardSprite(group){
 }
 
 function shoot(row,col){
-  if(!canShoot||!gameActive)return;
+  if(!assetsReady||!ballMesh||!canShoot||!gameActive)return;
   canShoot=false;
   document.getElementById('banner').style.display='none';
   setHiOpacity(-1,-1,0);
@@ -402,6 +418,7 @@ function showResult(isGoal){
   ov.classList.add('show');
   setTimeout(()=>{
     ov.classList.remove('show');
+    if(!assetsReady)return;
     ballMesh.position.set(0,BALL_R,0);
     ballAnim.active=false;
     playerRoot.position.set(0,0,0.95);
@@ -413,6 +430,7 @@ function showResult(isGoal){
 }
 
 function resetRoundVisuals(){
+  if(!assetsReady)return;
   ballMesh.position.set(0,BALL_R,0);
   ballMesh.scale.setScalar(1);
   ballAnim.active=false;
@@ -446,6 +464,7 @@ function showFinal(){
 }
 
 function resetGame(){
+  if(!assetsReady)return;
   goals=0;misses=0;shots=0;canShoot=true;gameActive=true;
   document.getElementById('sGoal').textContent='0';
   document.getElementById('sMiss').textContent='0';
@@ -457,10 +476,6 @@ function resetGame(){
 }
 
 window.resetGame=resetGame;
-window.startGame=function(){
-  document.getElementById('start').style.display='none';
-  gameActive=true;canShoot=true;
-};
 window.shareResult=function(){
   const txt='Pusulabet Penalti: '+goals+'/'+TOTAL+' gol! @pusulasocial';
   if(tg&&tg.openTelegramLink)tg.openTelegramLink('https://t.me/share/url?url=https://t.me/pusulabetgame_bot/penalti&text='+encodeURIComponent(txt));
@@ -520,6 +535,13 @@ canvas.addEventListener('touchmove',e=>{
 let lastT=0;
 function loop(ts){
   const dt=Math.min((ts-lastT)/1000,0.05); lastT=ts;
+
+  if(!assetsReady){
+    renderer.render(scene,camera);
+    drawFx();
+    requestAnimationFrame(loop);
+    return;
+  }
 
   if(ballAnim.active){
     ballAnim.t+=dt;
@@ -613,7 +635,6 @@ async function boot(){
       loadTexture(CFG.ASSETS.keeper),
     ]);
 
-    scene.background=null;
     const bgAspect=1536/1024;
     const bgH=28;
     const bgW=bgH*bgAspect;
@@ -655,16 +676,23 @@ async function boot(){
     keeperRoot.renderOrder=8;
     scene.add(keeperRoot);
 
+    assetsReady=true;
     size();
     buildDots();
     resetPositions();
-    requestAnimationFrame(loop);
   } catch(err){
     console.error(err);
-    document.body.insertAdjacentHTML('beforeend','<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#111;color:#fff;padding:24px;text-align:center;z-index:9999;font-family:sans-serif">assets/ klasorunde bg.png, ball.png, arda.png, keeper.png dosyalari gerekli.<br><small>'+String(err)+'</small></div>');
+    const msg='assets/ klasorunde bg.png, ball.png, arda.png, keeper.png olmali. index.html ile ayni dizinde olmalilar. Hata: '+String(err?.message||err);
+    const d=document.createElement('div');
+    d.style.cssText='position:fixed;bottom:12px;left:12px;right:12px;max-width:520px;margin:auto;background:#1a1a1a;color:#ffb74d;padding:12px 16px;border-radius:10px;font:14px/1.4 sans-serif;z-index:9999;border:1px solid #444';
+    d.textContent=msg;
+    document.body.appendChild(d);
   }
 }
 
+size();
+buildDots();
+requestAnimationFrame(loop);
 boot();
 </script>
 </body>
