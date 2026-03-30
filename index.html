@@ -141,15 +141,19 @@ const CFG = {
 // ——————————————————————————————————————————————
 const gltfLoader = new GLTFLoader();
 
+/**
+ * GLB yükler. Başarısız olursa null döndürür (asla reject etmez).
+ * Bu sayede Promise.allSettled ile tek bir dosya hatası oyunu çökertmez.
+ */
 function loadGLB(url) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     gltfLoader.load(
       url,
       (gltf) => resolve(gltf),
       undefined,
       (err) => {
-        console.error('[GLB] Yüklenemedi:', url, err);
-        reject(new Error('GLB yüklenemedi: ' + url));
+        console.warn('[GLB] Yüklenemedi (atlanıyor):', url, err?.message || err);
+        resolve(null); // null döndür, reject etme
       }
     );
   });
@@ -676,7 +680,7 @@ async function boot(){
     scene.add(ballMesh);
     console.log('[boot] Top OK');
 
-    // 2. Tüm GLB paralel yükle
+    // 2. Tüm GLB paralel yükle — biri null gelse bile devam edilir
     const [
       ardaKickGltf, ardaIdleGltf,
       keeperIdleGltf,
@@ -694,7 +698,15 @@ async function boot(){
       loadGLB(CFG.ASSETS.glb.keeper_sidestep_left),
       loadGLB(CFG.ASSETS.glb.keeper_sidestep_right),
     ]);
-    console.log('[boot] Tüm GLB yüklendi ✓');
+
+    // Hangi dosyaların yüklendiğini logla
+    const _names=['arda_kick','arda_idle','keeper_idle','keeper_dive_left','keeper_dive_right','keeper_save_low_left','keeper_save_low_right','keeper_sidestep_left','keeper_sidestep_right'];
+    [ardaKickGltf,ardaIdleGltf,keeperIdleGltf,keeperDiveLGltf,keeperDiveRGltf,keeperSaveLLGltf,keeperSaveLRGltf,keeperStepLGltf,keeperStepRGltf]
+      .forEach((g,i)=>console.log(`[GLB] ${_names[i]}: ${g?'✓':'✗ YÜKLENEMEDİ — ATLANIYOR'}`));
+
+    // Zorunlu dosyalar kontrolü
+    if(!ardaKickGltf) throw new Error('Zorunlu: arda_kick.glb yüklenemedi');
+    if(!keeperIdleGltf) throw new Error('Zorunlu: keeper_idle.glb yüklenemedi');
 
     // ——————————————————————————————
     // Arda Güler kurulumu
@@ -721,15 +733,16 @@ async function boot(){
       ardaActions.kick.clampWhenFinished=true;
     } else console.warn('[boot] arda_kick.glb animasyon içermiyor');
 
-    // Idle animasyonu (farklı GLB, aynı iskelet varsayımı)
-    if(ardaIdleGltf.animations.length>0){
-      const idleClip=ardaIdleGltf.animations[0];
+    // Idle animasyonu — arda_idle.glb yoksa kick animasyonu idle olarak kullanılır
+    const ardaIdleSrc = ardaIdleGltf || ardaKickGltf;
+    if(ardaIdleSrc.animations.length>0){
+      const idleClip=ardaIdleSrc.animations[0];
       removePositionTracks(idleClip); idleClip.name='arda_idle';
       ardaActions.idle=ardaMixer.clipAction(idleClip);
       ardaActions.idle.setLoop(THREE.LoopRepeat,Infinity);
       ardaActions.idle.play();
       ardaCurrentAction=ardaActions.idle;
-    } else console.warn('[boot] arda_idle.glb animasyon içermiyor');
+    } else console.warn('[boot] Arda idle animasyonu bulunamadı');
 
     // ——————————————————————————————
     // Kaleci kurulumu
@@ -748,7 +761,9 @@ async function boot(){
     keeperMixer=new THREE.AnimationMixer(keeperIdleScene);
 
     // Yardımcı: GLTF'ten clip ayıkla ve keeperActions'a ekle
+    // gltf null ise veya animasyon yoksa sessizce atla
     function addKeeperClip(gltf, name, loop=THREE.LoopOnce){
+      if(!gltf){console.warn('[boot] GLB null, atlanıyor:', name);return;}
       if(!gltf.animations.length){console.warn('[boot] Animasyon yok:', name);return;}
       const clip=gltf.animations[0];
       removePositionTracks(clip); clip.name=name;
