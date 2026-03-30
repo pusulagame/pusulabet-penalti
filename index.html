@@ -142,20 +142,24 @@ const CFG = {
 const gltfLoader = new GLTFLoader();
 
 /**
- * GLB yükler. Başarısız olursa null döndürür (asla reject etmez).
- * Bu sayede Promise.allSettled ile tek bir dosya hatası oyunu çökertmez.
+ * GLB yükler. Her türlü hata durumunda null döndürür, asla throw etmez.
  */
 function loadGLB(url) {
   return new Promise((resolve) => {
-    gltfLoader.load(
-      url,
-      (gltf) => resolve(gltf),
-      undefined,
-      (err) => {
-        console.warn('[GLB] Yüklenemedi (atlanıyor):', url, err?.message || err);
-        resolve(null); // null döndür, reject etme
-      }
-    );
+    try {
+      gltfLoader.load(
+        url,
+        (gltf) => resolve(gltf),
+        undefined,
+        (err) => {
+          console.warn('[GLB] 404/ağ hatası, atlanıyor:', url);
+          resolve(null);
+        }
+      );
+    } catch(e) {
+      console.warn('[GLB] Exception, atlanıyor:', url, e);
+      resolve(null);
+    }
   });
 }
 
@@ -807,8 +811,8 @@ async function boot(){
   } catch(err){
     console.error('[boot] Kritik yükleme hatası',err);
     const d=document.createElement('div');
-    d.style.cssText='position:fixed;bottom:12px;left:12px;right:12px;max-width:520px;margin:auto;background:#1a1a1a;color:#ffb74d;padding:12px 16px;border-radius:10px;font:14px/1.4 sans-serif;z-index:9999;border:1px solid #444';
-    d.textContent='GLB yükleme hatası: '+String(err?.message||err)+' — assets/ klasörünü kontrol edin.';
+    d.style.cssText='position:fixed;bottom:12px;left:12px;right:12px;max-width:520px;margin:auto;background:#1a1a1a;color:#ffb74d;padding:12px 16px;border-radius:10px;font:14px/1.4 sans-serif;z-index:9999;border:1px solid #444;word-break:break-all';
+    d.innerHTML='<b>Kritik GLB Hatası:</b><br>'+String(err?.message||err)+'<br><br><small>Konsolu açıp [GLB] satırlarına bakın — hangi dosyanın eksik olduğunu gösterir.</small>';
     document.body.appendChild(d);
   }
 }
