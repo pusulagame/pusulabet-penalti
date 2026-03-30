@@ -109,32 +109,42 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // ——————————————————————————————————————————————
-// Asset Yolları
+// Asset Yolları — window.location tabanlı, GitHub Pages uyumlu
 // ——————————————————————————————————————————————
-function resolveAsset(relPath) {
-  const baseDir = new URL('.', import.meta.url).href;
-  return new URL(relPath, baseDir).href;
-}
+
+// index.html'nin bulunduğu dizini al, sonuna assets/ ekle
+// Örnek: https://pusulagame.github.io/pusulabet-penalti/ → .../assets/
+const _base = (()=>{
+  const p = window.location.pathname;          // /pusulabet-penalti/
+  const dir = p.endsWith('/') ? p : p.substring(0, p.lastIndexOf('/') + 1);
+  return window.location.origin + dir + 'assets/';
+})();
+
+function asset(file){ return _base + file; }
 
 const CFG = {
   ASSETS: {
-    bg:   resolveAsset('assets/bg.png'),
-    ball: resolveAsset('assets/ball.png'),
+    bg:   asset('bg.png'),
+    ball: asset('ball.png'),
     glb: {
-      arda_kick:             resolveAsset('assets/arda_kick.glb'),
-      arda_idle:             resolveAsset('assets/arda_idle.glb'),
-      keeper_idle:           resolveAsset('assets/keeper_idle.glb'),
-      keeper_dive_left:      resolveAsset('assets/keeper_dive_left.glb'),
-      keeper_dive_right:     resolveAsset('assets/keeper_dive_right.glb'),
-      keeper_save_low_left:  resolveAsset('assets/keeper_save_low_left.glb'),
-      keeper_save_low_right: resolveAsset('assets/keeper_save_low_right.glb'),
-      keeper_sidestep_left:  resolveAsset('assets/keeper_sidestep_left.glb'),
-      keeper_sidestep_right: resolveAsset('assets/keeper_sidestep_right.glb'),
+      arda_kick:             asset('arda_kick.glb'),
+      arda_idle:             asset('arda_idle.glb'),
+      keeper_idle:           asset('keeper_idle.glb'),
+      keeper_dive_left:      asset('keeper_dive_left.glb'),
+      keeper_dive_right:     asset('keeper_dive_right.glb'),
+      keeper_save_low_left:  asset('keeper_save_low_left.glb'),
+      keeper_save_low_right: asset('keeper_save_low_right.glb'),
+      keeper_sidestep_left:  asset('keeper_sidestep_left.glb'),
+      keeper_sidestep_right: asset('keeper_sidestep_right.glb'),
     }
   },
-  ARDA_HEIGHT:   1.75,  // metre — GLB gerçek ölçek
-  KEEPER_HEIGHT: 1.90,  // metre — GLB gerçek ölçek
+  ARDA_HEIGHT:   1.75,  // metre
+  KEEPER_HEIGHT: 1.90,  // metre
 };
+
+// Boot başlamadan önce base path'i logla — 404 hatalarında kontrol et
+console.log('[CFG] Asset base:', _base);
+console.log('[CFG] Örnek yol:', CFG.ASSETS.glb.arda_kick);
 
 // ——————————————————————————————————————————————
 // GLB Yükleyici
