@@ -729,45 +729,47 @@ async function boot(){
     [ardaKickGltf,ardaIdleGltf,keeperIdleGltf,keeperDiveLGltf,keeperDiveRGltf,keeperSaveLLGltf,keeperSaveLRGltf,keeperStepLGltf,keeperStepRGltf]
       .forEach((g,i)=>console.log(`[GLB] ${_names[i]}: ${g?'✓':'✗ YÜKLENEMEDİ — ATLANIYOR'}`));
 
-    // Zorunlu dosyalar kontrolü
-    if(!ardaKickGltf) throw new Error('Zorunlu: arda_kick.glb yüklenemedi');
+    // keeper_idle zorunlu — Arda opsiyonel (eksikse görünmez, oyun devam eder)
     if(!keeperIdleGltf) throw new Error('Zorunlu: keeper_idle.glb yüklenemedi');
 
     // ——————————————————————————————
-    // Arda Güler kurulumu
+    // Arda Güler kurulumu (opsiyonel — GLB yoksa atla)
     // ——————————————————————————————
-    const ardaKickScene = ardaKickGltf.scene;
-    normalizeGLB(ardaKickScene, CFG.ARDA_HEIGHT);
-    ardaKickScene.traverse(c=>{ if(c.isMesh){ c.castShadow=false; c.receiveShadow=false; } });
+    if(ardaKickGltf){
+      const ardaKickScene = ardaKickGltf.scene;
+      normalizeGLB(ardaKickScene, CFG.ARDA_HEIGHT);
+      ardaKickScene.traverse(c=>{ if(c.isMesh){ c.castShadow=false; c.receiveShadow=false; } });
 
-    ardaRoot=new THREE.Group();
-    ardaRoot.add(ardaKickScene);
-    ardaRoot.position.set(0,0,0.55);
-    ardaRoot.rotation.y=Math.PI; // Mixamo +Z → kaleye bakıyor
-    ardaRoot.renderOrder=10;
-    scene.add(ardaRoot);
+      ardaRoot=new THREE.Group();
+      ardaRoot.add(ardaKickScene);
+      ardaRoot.position.set(0,0,0.55);
+      ardaRoot.rotation.y=Math.PI;
+      ardaRoot.renderOrder=10;
+      scene.add(ardaRoot);
 
-    ardaMixer=new THREE.AnimationMixer(ardaKickScene);
+      ardaMixer=new THREE.AnimationMixer(ardaKickScene);
 
-    // Kick animasyonu (aynı GLB'den)
-    if(ardaKickGltf.animations.length>0){
-      const kickClip=ardaKickGltf.animations[0];
-      removePositionTracks(kickClip); kickClip.name='kick';
-      ardaActions.kick=ardaMixer.clipAction(kickClip);
-      ardaActions.kick.setLoop(THREE.LoopOnce,1);
-      ardaActions.kick.clampWhenFinished=true;
-    } else console.warn('[boot] arda_kick.glb animasyon içermiyor');
+      if(ardaKickGltf.animations.length>0){
+        const kickClip=ardaKickGltf.animations[0];
+        removePositionTracks(kickClip); kickClip.name='kick';
+        ardaActions.kick=ardaMixer.clipAction(kickClip);
+        ardaActions.kick.setLoop(THREE.LoopOnce,1);
+        ardaActions.kick.clampWhenFinished=true;
+      }
 
-    // Idle animasyonu — arda_idle.glb yoksa kick animasyonu idle olarak kullanılır
-    const ardaIdleSrc = ardaIdleGltf || ardaKickGltf;
-    if(ardaIdleSrc.animations.length>0){
-      const idleClip=ardaIdleSrc.animations[0];
-      removePositionTracks(idleClip); idleClip.name='arda_idle';
-      ardaActions.idle=ardaMixer.clipAction(idleClip);
-      ardaActions.idle.setLoop(THREE.LoopRepeat,Infinity);
-      ardaActions.idle.play();
-      ardaCurrentAction=ardaActions.idle;
-    } else console.warn('[boot] Arda idle animasyonu bulunamadı');
+      const ardaIdleSrc = ardaIdleGltf || ardaKickGltf;
+      if(ardaIdleSrc.animations.length>0){
+        const idleClip=ardaIdleSrc.animations[0];
+        removePositionTracks(idleClip); idleClip.name='arda_idle';
+        ardaActions.idle=ardaMixer.clipAction(idleClip);
+        ardaActions.idle.setLoop(THREE.LoopRepeat,Infinity);
+        ardaActions.idle.play();
+        ardaCurrentAction=ardaActions.idle;
+      }
+      console.log('[boot] Arda kurulumu OK');
+    } else {
+      console.warn('[boot] arda_kick.glb yüklenemedi — Arda karakteri gösterilmeyecek, oyun devam ediyor');
+    }
 
     // ——————————————————————————————
     // Kaleci kurulumu
