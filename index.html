@@ -152,25 +152,36 @@ console.log('[CFG] Örnek yol:', CFG.ASSETS.glb.arda_kick);
 const gltfLoader = new GLTFLoader();
 
 /**
- * GLB yükler. Her türlü hata durumunda null döndürür, asla throw etmez.
+ * GLB yükler. Önce fetch ile dosyanın erişilebilir olduğunu kontrol eder,
+ * sonra GLTFLoader ile parse eder. Her hata durumunda null döner.
  */
-function loadGLB(url) {
-  return new Promise((resolve) => {
-    try {
-      gltfLoader.load(
-        url,
+async function loadGLB(url) {
+  // 1. Önce fetch ile HTTP kontrolü — 404/CORS vs. erken yakala
+  try {
+    const resp = await fetch(url, { method: 'GET' });
+    if (!resp.ok) {
+      console.warn(`[GLB] HTTP ${resp.status} — atlanıyor:`, url);
+      return null;
+    }
+    const arrayBuffer = await resp.arrayBuffer();
+    console.log(`[GLB] Fetch OK (${(arrayBuffer.byteLength/1024).toFixed(0)} KB):`, url);
+
+    // 2. ArrayBuffer'dan parse et
+    return await new Promise((resolve) => {
+      gltfLoader.parse(
+        arrayBuffer,
+        '',          // resource path (texture'lar GLB içine gömülü olmalı)
         (gltf) => resolve(gltf),
-        undefined,
         (err) => {
-          console.warn('[GLB] 404/ağ hatası, atlanıyor:', url);
+          console.warn('[GLB] Parse hatası, atlanıyor:', url, err?.message || err);
           resolve(null);
         }
       );
-    } catch(e) {
-      console.warn('[GLB] Exception, atlanıyor:', url, e);
-      resolve(null);
-    }
-  });
+    });
+  } catch(e) {
+    console.warn('[GLB] Fetch/parse exception, atlanıyor:', url, e?.message || e);
+    return null;
+  }
 }
 
 /**
