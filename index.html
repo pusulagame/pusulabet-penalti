@@ -235,6 +235,9 @@ let goalRect={xMin:-GW/2,xMax:GW/2,yMin:GOAL_YOF,yMax:GOAL_YOF+GH,z:GZ};
 // Goal local uzayinda hedef rect (hiG goalObj child olunca local yerlesim buradan gelir)
 let goalLocalRect={xMin:-GW/2,xMax:GW/2,yMin:0,yMax:GH,z:0};
 
+// ── SAHNE OBJELERI (TDZ hatasini onlemek icin erken tanim) ──
+// (moved earlier) arda/keeper/goalObj/ballObj
+
 // Goal hit plane mesh (raycast): goal ile aynı düzlemde ve aynı dönüşte
 let goalHitMesh=null;
 const rc=new THREE.Raycaster();
