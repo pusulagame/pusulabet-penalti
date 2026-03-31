@@ -41,7 +41,14 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
 .rsub{font-size:18px;color:rgba(255,255,255,.82);position:relative;z-index:1;letter-spacing:1px;}
 #final{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;}
 #final.show{display:flex;}
-.fbg{position:absolute;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);}
+.fbg{
+  position:absolute;
+  inset:0;
+  background:
+    radial-gradient(80% 70% at 50% 35%, rgba(0,0,0,.20) 0%, rgba(0,0,0,.82) 65%, rgba(0,0,0,.92) 100%),
+    url('assets/final-bg.png') center/cover no-repeat;
+  filter:saturate(1.05) contrast(1.05);
+}
 .fcard{position:relative;z-index:1;background:linear-gradient(145deg,rgba(255,107,0,.1),rgba(0,0,0,.7));border:1px solid rgba(255,215,0,.28);border-radius:24px;padding:32px 40px;text-align:center;max-width:320px;width:88%;}
 .ftrophy{font-size:66px;margin-bottom:6px;}
 .ftitle{font-family:'Bebas Neue',cursive;font-size:48px;letter-spacing:3px;margin-bottom:4px;}
@@ -656,11 +663,18 @@ function showFinal(){
   const pct=goals/TOTAL;
   const t=document.getElementById('fTrophy'),ti=document.getElementById('fTitle'),m=document.getElementById('fMsg');
   document.getElementById('fScore').textContent=goals+'/'+TOTAL+' GOL';
-  if(pct===1)      {t.textContent='🏆';ti.textContent='MUKEMMEL!';ti.style.color='#FFD700';m.textContent='Tum penaltilari gol yaptin!';}
-  else if(pct>=0.8){t.textContent='🥇';ti.textContent='HARIKA!';  ti.style.color='#FFD700';m.textContent='Cok iyi!';}
-  else if(pct>=0.6){t.textContent='⭐';ti.textContent='IYI!';    ti.style.color='#4FC3F7';m.textContent='Guzel oyun!';}
-  else if(pct>=0.4){t.textContent='💪';ti.textContent='DEVAM ET!';ti.style.color='#FF9800';m.textContent='Rovans ver!';}
-  else             {t.textContent='😅';ti.textContent='OLMADI!'; ti.style.color='#FF5252';m.textContent='Bu sefer kaleci kazandi!';}
+  const won = goals >= 3;
+  if(won){
+    t.textContent = pct===1 ? '🏆' : '🥳';
+    ti.textContent = 'KAZANDIN!';
+    ti.style.color = '#00E676';
+    m.textContent = pct===1 ? 'Mukemmel performans!' : 'Tebrikler! Kazandin.';
+  }else{
+    t.textContent = '😅';
+    ti.textContent = 'KAYBETTİN!';
+    ti.style.color = '#FF5252';
+    m.textContent = 'Bu sefer kaleci kazandi!';
+  }
   document.getElementById('final').classList.add('show');
   gameActive=false;
   spawnC(W/2,H*0.35);
