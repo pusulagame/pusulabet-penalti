@@ -45,9 +45,9 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
   position:absolute;
   inset:0;
   background:
-    radial-gradient(80% 70% at 50% 35%, rgba(0,0,0,.20) 0%, rgba(0,0,0,.82) 65%, rgba(0,0,0,.92) 100%),
+    radial-gradient(85% 75% at 50% 35%, rgba(0,0,0,.08) 0%, rgba(0,0,0,.55) 62%, rgba(0,0,0,.68) 100%),
     url('assets/final-bg.png') center/cover no-repeat;
-  filter:saturate(1.05) contrast(1.05);
+  filter:saturate(1.10) contrast(1.06);
 }
 .fcard{position:relative;z-index:1;background:linear-gradient(145deg,rgba(255,107,0,.1),rgba(0,0,0,.7));border:1px solid rgba(255,215,0,.28);border-radius:24px;padding:32px 40px;text-align:center;max-width:320px;width:88%;}
 .ftrophy{font-size:66px;margin-bottom:6px;}
@@ -97,12 +97,12 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
   <div id="final">
     <div class="fbg"></div>
     <div class="fcard">
-      <div class="ftrophy" id="fTrophy">🏆</div>
+      <div class="ftrophy" id="fTrophy"></div>
       <div class="ftitle" id="fTitle">TEBRIKLER!</div>
       <div class="fscore" id="fScore">5/5 GOL</div>
       <div class="fmsg" id="fMsg">Mukemmel!</div>
-      <button class="btnP" onclick="resetGame()">🔄 TEKRAR OYNA</button>
-      <button class="btnS" onclick="shareResult()">📤 Skoru Paylas</button>
+      <button class="btnP" type="button" onclick="openBet()">BAHIS AL</button>
+      <button class="btnS" type="button" onclick="openPusulaTelegram()">Pusula Telegram</button>
     </div>
   </div>
   <div id="start">
@@ -562,11 +562,18 @@ function shootAt(worldTarget, localTarget){
 
   const yN=(lp.y-goalLocalRect.yMin)/Math.max(0.01,(goalLocalRect.yMax-goalLocalRect.yMin));
 
-  // save probability: reachable + height
-  const withinReach=Math.abs(dx)<=reachX+0.08;
-  const base=withinReach ? 0.60 : 0.16;
-  const highPenalty=yN>0.66 ? -0.12 : 0;
-  const saved=Math.random()<(base+highPenalty);
+  // Zorluk dengesi: hedeflenen sut basina gol olasiligi ~0.2466 (≈ %24.7)
+  // (5 sutta >=3 gol kazanma olasiligi ≈ %10)
+  const pGoalBase = 0.2466;
+  const cornerScore = clamp(Math.abs(dx)/Math.max(0.001, halfW), 0, 1); // 0 merkez, 1 kose
+  const heightScore = clamp(yN, 0, 1); // 0 alt, 1 ust
+  // Kullanicinin kose/ust tercihine kucuk odul, toplam ortalama pGoalBase etrafinda kalir
+  const pGoal = clamp(
+    pGoalBase + 0.07*(cornerScore-0.5) + 0.05*(heightScore-0.5),
+    0.10,
+    0.40
+  );
+  const saved = Math.random() > pGoal;
 
   // Eski timer'lari temizle (spam tap/click)
   if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
@@ -665,12 +672,12 @@ function showFinal(){
   document.getElementById('fScore').textContent=goals+'/'+TOTAL+' GOL';
   const won = goals >= 3;
   if(won){
-    t.textContent = pct===1 ? '🏆' : '🥳';
+    t.textContent = '';
     ti.textContent = 'KAZANDIN!';
     ti.style.color = '#00E676';
     m.textContent = pct===1 ? 'Mukemmel performans!' : 'Tebrikler! Kazandin.';
   }else{
-    t.textContent = '😅';
+    t.textContent = '';
     ti.textContent = 'KAYBETTİN!';
     ti.style.color = '#FF5252';
     m.textContent = 'Bu sefer kaleci kazandi!';
@@ -705,10 +712,24 @@ function resetGame(){
 }
 window.resetGame=resetGame;
 
-window.shareResult=function(){
-  const txt='Pusulabet Penalti: '+goals+'/'+TOTAL+' gol! @pusulasocial';
-  if(tg&&tg.openTelegramLink) tg.openTelegramLink('https://t.me/share/url?url=https://t.me/pusulabetgame_bot/penalti&text='+encodeURIComponent(txt));
-  else if(navigator.share) navigator.share({text:txt});
+window.openBet=function(){
+  const url='https://t2m.io/guncelpusulabet';
+  try{
+    if(tg && tg.openLink) tg.openLink(url);
+    else window.open(url,'_blank','noopener');
+  }catch(e){
+    window.open(url,'_blank','noopener');
+  }
+};
+
+window.openPusulaTelegram=function(){
+  const url='https://t.me/pusulasocial';
+  try{
+    if(tg && tg.openTelegramLink) tg.openTelegramLink(url);
+    else window.open(url,'_blank','noopener');
+  }catch(e){
+    window.open(url,'_blank','noopener');
+  }
 };
 
 function startGame(){document.getElementById('start').style.display='none';gameActive=true;canShoot=true;}
