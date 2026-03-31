@@ -255,7 +255,24 @@ function persistPbUser(v){
   pusulabetUsername = normPbUser(v);
   try{ localStorage.setItem(PB_USER_KEY, pusulabetUsername); }catch(e){}
 }
+function getTgId(){ return String(tg?.initDataUnsafe?.user?.id || ''); }
+function isPenaltyLocked(){
+  const id = getTgId();
+  if(!id) return false;
+  try{ return localStorage.getItem('penalty_done_'+id) === '1'; }catch(e){ return false; }
+}
+function applyPenaltyLockUI(){
+  if(!isPenaltyLocked()) return;
+  if(btnStart){
+    btnStart.disabled=true;
+    btnStart.style.opacity='0.55';
+    btnStart.textContent='KATILIM TAMAMLANDI';
+  }
+  if(pbUserEl) pbUserEl.disabled=true;
+  setPbError('Bu Telegram hesabıyla zaten katıldın.');
+}
 loadPbUser();
+applyPenaltyLockUI();
 if(btnStart){
   btnStart.disabled=true;
   btnStart.style.opacity='0.65';
@@ -276,9 +293,15 @@ function setLoadProgress(p){
   if(btnStart) btnStart.textContent = pct>=100 ? '⚽ BASLAT' : ('YÜKLENİYOR... '+pct+'%');
   if(pct>=100){
     if(btnStart){
-      btnStart.disabled=false;
-      btnStart.style.opacity='';
-      btnStart.textContent='⚽ BASLAT';
+      if(isPenaltyLocked()){
+        btnStart.disabled=true;
+        btnStart.style.opacity='0.55';
+        btnStart.textContent='KATILIM TAMAMLANDI';
+      }else{
+        btnStart.disabled=false;
+        btnStart.style.opacity='';
+        btnStart.textContent='⚽ BASLAT';
+      }
     }
     if(ld) ld.classList.add('hide');
   }
@@ -759,6 +782,10 @@ function showRes(ok){
 }
 
 function showFinal(){
+  const tgIdEarly = getTgId();
+  if(tgIdEarly){
+    try{ localStorage.setItem('penalty_done_'+tgIdEarly,'1'); }catch(e){}
+  }
   // HUD tek kaynak: global goals ile tutarsizlik olmasin
   const goalsHud = parseInt(document.getElementById('sGoal')?.textContent || '0', 10) || goals;
   const pct=goalsHud/TOTAL;
@@ -798,6 +825,9 @@ function showFinal(){
     total: TOTAL
   });
 
+  const btnReplay=document.querySelector('#final .btnP');
+  if(btnReplay && tgId){ btnReplay.style.display='none'; }
+
   // 1) sendData ile bot'a gönder
   if(tg && tg.sendData){
     try{
@@ -830,6 +860,7 @@ function showFinal(){
 }
 
 function resetGame(){
+  if(isPenaltyLocked()) return;
   goals=0;misses=0;shots=0;canShoot=true;gameActive=true;
   document.getElementById('sGoal').textContent='0';
   document.getElementById('sMiss').textContent='0';
@@ -878,6 +909,10 @@ window.startGame=startGame;
 document.getElementById('btnStart')?.addEventListener('click',e=>{
   e.preventDefault();
   if(!ready) return;
+  if(isPenaltyLocked()){
+    setPbError('Bu Telegram hesabıyla zaten katıldın.');
+    return;
+  }
   const v = readPbUser();
   if(!v){
     setPbError('Lütfen Pusulabet kullanıcı adını gir.');
