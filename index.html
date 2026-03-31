@@ -172,7 +172,8 @@ resize();addEventListener('resize',resize);
 scene.add(new THREE.AmbientLight(0xffffff,0.75));
 const sun=new THREE.DirectionalLight(0xfff5e6,1.0);
 sun.position.set(-8,22,12);scene.add(sun);
-scene.add(Object.assign(new THREE.DirectionalLight(0xaaccff,0.22),{position:new THREE.Vector3(10,8,-5)}));
+const fill=new THREE.DirectionalLight(0xaaccff,0.22);
+fill.position.set(10,8,-5);scene.add(fill);
 
 // Zemin (gorunmez)
 const gnd=new THREE.Mesh(new THREE.PlaneGeometry(120,120),new THREE.MeshStandardMaterial({transparent:true,opacity:0,depthWrite:false}));
