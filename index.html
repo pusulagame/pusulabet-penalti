@@ -653,7 +653,7 @@ function shootAt(worldTarget, localTarget){
   // Zorluk dengesi: hedeflenen sut basina gol olasiligi ~0.2466 (≈ %24.7)
   // (5 sutta >=3 gol kazanma olasiligi ≈ %10)
   // Biraz daha kolay: taban gol olasiligi arttirildi
-  const pGoalBase = 0.285;
+  const pGoalBase = 0.32;
   const cornerScore = clamp(Math.abs(dx)/Math.max(0.001, halfW), 0, 1); // 0 merkez, 1 kose
   const heightScore = clamp(yN, 0, 1); // 0 alt, 1 ust
   // Kullanicinin kose/ust tercihine kucuk odul, toplam ortalama pGoalBase etrafinda kalir
@@ -732,7 +732,7 @@ function showRes(ok){
   const ov=document.getElementById('result');
   document.getElementById('rEmoji').textContent=ok?'⚽':'🧤';
   const rt=document.getElementById('rTxt');
-  rt.textContent=ok?'GOL!':'TUTUDU!';
+  rt.textContent=ok?'GOL!':'TUTTU!';
   rt.className='rtxt '+(ok?'gt':'mt');
   document.getElementById('rSub').textContent=(ok?GMSG:MMSG)[Math.floor(Math.random()*(ok?GMSG:MMSG).length)];
   ov.classList.add('show');
