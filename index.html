@@ -151,9 +151,32 @@ let W=innerWidth,H=innerHeight;
 
 const scene=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(42,W/H,0.1,220);
-// Kompozisyon: Arda alt-orta, kale + kaleci net, mobil dikeyde dengeli
-cam.position.set(0,1.65,9.6);
-cam.lookAt(0,1.25,GZ+2.2);
+const isMobile = ()=> window.innerWidth < 768;
+
+// Kamera kompozisyon presetleri (oyun mantigina dokunmadan kadraj duzeltme)
+const CAMERA_PRESETS = {
+  desktop: {
+    pos: new THREE.Vector3(0, 1.65, 9.6),
+    look: new THREE.Vector3(0, 1.25, GZ + 2.2),
+    fovPortrait: 58,
+    fovLandscape: 42,
+  },
+  mobile: {
+    // Mobilde sahne fazla uzak gorunmesin: kamerayi yaklastir + FOV'i daralt
+    pos: new THREE.Vector3(0, 1.58, 7.35),
+    look: new THREE.Vector3(0, 1.22, GZ + 2.05),
+    fovPortrait: 40,
+    fovLandscape: 46,
+  }
+};
+
+function applyCameraPreset(){
+  const preset = isMobile() ? CAMERA_PRESETS.mobile : CAMERA_PRESETS.desktop;
+  cam.position.copy(preset.pos);
+  cam.fov = (H > W) ? preset.fovPortrait : preset.fovLandscape;
+  cam.updateProjectionMatrix();
+  cam.lookAt(preset.look);
+}
 
 const rdr=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
 rdr.setPixelRatio(Math.min(devicePixelRatio,1.5));
@@ -198,12 +221,16 @@ function resize(){
   fx.width=W;fx.height=H;
   rdr.setSize(W,H,false);
   cam.aspect=W/H;
-  cam.fov=H>W?58:42;
-  cam.updateProjectionMatrix();
+  applyCameraPreset();
   updateBgCover();
 }
 resize();
 addEventListener('resize',resize);
+// Mobil WebView'lerde (Telegram dahil) bazen sadece visualViewport degisir.
+if (window.visualViewport){
+  window.visualViewport.addEventListener('resize', resize);
+  window.visualViewport.addEventListener('scroll', resize);
+}
 
 // Isiklar
 scene.add(new THREE.AmbientLight(0xffffff,0.8));
