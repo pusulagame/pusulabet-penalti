@@ -711,7 +711,8 @@ async function boot(){
         const s=Math.min(sx,sy);
         gfbx.scale.setScalar(s);
       }
-      gfbx.position.set(0,GOAL_YOF,GZ);
+      // BG icinde kale zaten gorundugu icin 3D kale biraz geride dursun (öne gelmis hissi vermesin)
+      gfbx.position.set(0,GOAL_YOF,GZ-0.45);
       gfbx.renderOrder=2;
       scene.add(gfbx);
       goalObj=gfbx;
