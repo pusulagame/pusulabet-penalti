@@ -247,32 +247,27 @@ const rc=new THREE.Raycaster();
 const ndc=new THREE.Vector2();
 const hit=new THREE.Vector3();
 
-// Highlight meshler (kale secici) — goalObj child olacak; yoksa world'e eklenir
-const hiG=new THREE.Group();
-scene.add(hiG);
-
+// Goal hit plane mesh (raycast): goal ile aynı düzlemde ve aynı dönüşte
 function ensureGoalHitMesh(){
-  const w=goalLocalRect.xMax-goalLocalRect.xMin;
-  const h=goalLocalRect.yMax-goalLocalRect.yMin;
+  const w=Math.max(0.01,goalLocalRect.xMax-goalLocalRect.xMin);
+  const h=Math.max(0.01,goalLocalRect.yMax-goalLocalRect.yMin);
   const cx=(goalLocalRect.xMin+goalLocalRect.xMax)/2;
   const cy=(goalLocalRect.yMin+goalLocalRect.yMax)/2;
 
   if(!goalHitMesh){
     goalHitMesh=new THREE.Mesh(
-      new THREE.PlaneGeometry(Math.max(0.01,w),Math.max(0.01,h)),
+      new THREE.PlaneGeometry(w,h),
       new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthTest:false,depthWrite:false})
     );
     goalHitMesh.name='goalHitMesh';
     goalHitMesh.renderOrder=-1;
   }else{
     goalHitMesh.geometry.dispose();
-    goalHitMesh.geometry=new THREE.PlaneGeometry(Math.max(0.01,w),Math.max(0.01,h));
+    goalHitMesh.geometry=new THREE.PlaneGeometry(w,h);
   }
 
-  // Plane, goal local space'te durur (goal'a child olunca rotasyon otomatik aynı olur)
   goalHitMesh.position.set(cx,cy,goalLocalRect.z);
 
-  // Parent: goal varsa goal'a child; yoksa world'e koy (fallback)
   if(goalObj){
     if(goalHitMesh.parent!==goalObj) goalObj.add(goalHitMesh);
   }else{
@@ -280,48 +275,38 @@ function ensureGoalHitMesh(){
     goalHitMesh.position.set(0,GOAL_YOF+GH/2,TARGET_Z_WORLD);
   }
 }
+ensureGoalHitMesh();
 
-function rebuildTargets(){
-  while(hiG.children.length) hiG.remove(hiG.children[0]);
-  const w=goalLocalRect.xMax-goalLocalRect.xMin;
-  const h=goalLocalRect.yMax-goalLocalRect.yMin;
-  const cw=w/3, ch=h/3;
-  const z=goalLocalRect.z; // goal local space
-  for(let r=0;r<3;r++) for(let c=0;c<3;c++){
-    const mat=new THREE.MeshBasicMaterial({
-      color:0xffd700,
-      transparent:true,
-      opacity:0,
-      depthTest:true,
-      depthWrite:false,
-      polygonOffset:true,
-      // transparent sorting sorunlarinda goal'a gore biraz geri it
-      polygonOffsetFactor:1,
-      polygonOffsetUnits:1,
-    });
-    const m=new THREE.Mesh(new THREE.PlaneGeometry(cw-0.12,ch-0.12), mat);
-    m.position.set(goalLocalRect.xMin+cw*(c+0.5), goalLocalRect.yMin+ch*(2-r)+ch/2, z);
-    m.userData={r,c};
-    hiG.add(m);
-  }
-  ensureGoalHitMesh();
-}
-rebuildTargets();
+// Aim marker: hedef noktasinda kucuk isaret (desktop hover + mobile tap feedback)
+const aimMarker=new THREE.Mesh(
+  new THREE.CircleGeometry(0.12,24),
+  new THREE.MeshBasicMaterial({color:0xffd700,transparent:true,opacity:0.0,depthTest:true,depthWrite:false})
+);
+aimMarker.rotation.x=-Math.PI/2;
+aimMarker.renderOrder=3;
+scene.add(aimMarker);
 
-function setHi(r,c,op){
-  hiG.children.forEach(m=>{m.material.opacity=(r>=0&&m.userData.r===r&&m.userData.c===c)?op:0;});
-}
+let aim={inside:false, world:new THREE.Vector3(), local:new THREE.Vector3()};
 
-function worldCell(row,col){
-  const w=goalLocalRect.xMax-goalLocalRect.xMin;
-  const h=goalLocalRect.yMax-goalLocalRect.yMin;
-  const cw=w/3,ch=h/3;
-  const lp=new THREE.Vector3(
-    goalLocalRect.xMin+cw*(col+0.5),
-    goalLocalRect.yMin+ch*((2-row)+0.5),
-    goalLocalRect.z
-  );
-  return goalObj ? goalObj.localToWorld(lp) : lp.set(lp.x, lp.y+GOAL_YOF, TARGET_Z_WORLD);
+function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
+
+function getAimFromPointer(cx,cy){
+  if(!goalHitMesh) return null;
+  ndc.x=(cx/W)*2-1; ndc.y=-(cy/H)*2+1;
+  rc.setFromCamera(ndc,cam);
+  const ints=rc.intersectObject(goalHitMesh,false);
+  if(!ints||ints.length===0) return null;
+
+  const wp=ints[0].point;
+  const lp=goalObj ? goalObj.worldToLocal(wp.clone()) : wp.clone();
+
+  // clamp to goal local bounds
+  lp.x=clamp(lp.x,goalLocalRect.xMin,goalLocalRect.xMax);
+  lp.y=clamp(lp.y,goalLocalRect.yMin,goalLocalRect.yMax);
+  lp.z=goalLocalRect.z;
+
+  const w=goalObj ? goalObj.localToWorld(lp.clone()) : new THREE.Vector3(lp.x, lp.y+GOAL_YOF, TARGET_Z_WORLD);
+  return {world:w, local:lp};
 }
 
 // ── FBX YUKLEME ──
@@ -388,85 +373,77 @@ function tickChar(ch, dt){
 // ── OYUN DURUMU ──
 let ballMesh=null;
 let goals=0,misses=0,shots=0,gameActive=false,canShoot=true,ready=false;
-let hoverCell={r:-1,c:-1};
 let parts=[],confs=[];
 let ballAnim={on:false,t:0,dur:0.55,p0:null,p1:null,p2:null};
-let kAnim={phase:'idle',t:0,sx:0,tx:0};
+let kAnim={phase:'idle',t:0,sx:0,tx:0,side:'center',yN:0};
+const K_REACT_DELAY=0.14;
 
 function easeOut(t){return 1-Math.pow(1-t,3);}
 function easeIO(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
 
-// ── HOVER & SHOOT ──
-function hover(cx,cy){
-  if(!gameActive||!canShoot){setHi(-1,-1,0);return;}
-  ndc.x=(cx/W)*2-1;ndc.y=-(cy/H)*2+1;
-  rc.setFromCamera(ndc,cam);
-  if(!goalHitMesh){setHi(-1,-1,0);hoverCell={r:-1,c:-1};return;}
-  const ints=rc.intersectObject(goalHitMesh,false);
-  if(!ints||ints.length===0){setHi(-1,-1,0);hoverCell={r:-1,c:-1};return;}
-  const wp=ints[0].point;
-  const lp=goalObj ? goalObj.worldToLocal(wp.clone()) : wp.clone();
-
-  // Clamp inside goal local bounds
-  lp.x=Math.max(goalLocalRect.xMin,Math.min(goalLocalRect.xMax,lp.x));
-  lp.y=Math.max(goalLocalRect.yMin,Math.min(goalLocalRect.yMax,lp.y));
-  lp.z=goalLocalRect.z;
-  // world point (debug / future)
-  hit.copy(goalObj ? goalObj.localToWorld(lp.clone()) : lp);
-
-  // Bounds check (after clamp always inside, but keep for safety)
-  if(hit.x<goalRect.xMin||hit.x>goalRect.xMax||hit.y<goalRect.yMin||hit.y>goalRect.yMax){
-    setHi(-1,-1,0);hoverCell={r:-1,c:-1};return;
-  }
-  const w=goalLocalRect.xMax-goalLocalRect.xMin;
-  const h=goalLocalRect.yMax-goalLocalRect.yMin;
-  const cw=w/3,ch=h/3;
-  const col=Math.min(2,Math.max(0,Math.floor((lp.x-goalLocalRect.xMin)/cw)));
-  const row=2-Math.min(2,Math.max(0,Math.floor((lp.y-goalLocalRect.yMin)/ch)));
-  hoverCell={r:row,c:col};setHi(row,col,0.28);
+// ── TARGETING (tam 3D raycast) ──
+function updateAimVisual(cx,cy){
+  if(!gameActive||!canShoot){ aim.inside=false; aimMarker.material.opacity=0; canvas.style.cursor='default'; return; }
+  const a=getAimFromPointer(cx,cy);
+  if(!a){ aim.inside=false; aimMarker.material.opacity=0; canvas.style.cursor='default'; return; }
+  aim.inside=true;
+  aim.world.copy(a.world);
+  aim.local.copy(a.local);
+  aimMarker.position.set(a.world.x,0.012,a.world.z); // yere projekte marker
+  aimMarker.material.opacity=0.55;
+  canvas.style.cursor='crosshair';
 }
 
-function pickKAnim(side,row){
+function pickKAnim(side,yN){
+  const high=yN>0.66;
+  const low=yN<0.33;
+  if(high) return side==='left'?'dive_left':(side==='right'?'dive_right':(Math.random()<0.5?'dive_left':'dive_right'));
+  if(low)  return side==='left'?'save_low_left':(side==='right'?'save_low_right':'save_low_left');
   if(side==='center') return Math.random()<0.5?'sidestep_left':'sidestep_right';
-  if(row===2) return side==='left'?'save_low_left':'save_low_right';
   return side==='left'?'dive_left':'dive_right';
 }
 
-function shoot(row,col){
+function shootAt(worldTarget, localTarget){
   if(!ready||!canShoot||!gameActive) return;
   canShoot=false;
   document.getElementById('banner').style.display='none';
-  setHi(-1,-1,0);
+  aimMarker.material.opacity=0;
 
-  const target=worldCell(row,col);
-  // Kalecinin reaksiyonu topun hedefinden türetilir (nedensel bag)
+  // clamp again for safety
+  const lp=localTarget ? localTarget.clone() : (goalObj?goalObj.worldToLocal(worldTarget.clone()):worldTarget.clone());
+  lp.x=clamp(lp.x,goalLocalRect.xMin,goalLocalRect.xMax);
+  lp.y=clamp(lp.y,goalLocalRect.yMin,goalLocalRect.yMax);
+  lp.z=goalLocalRect.z;
+  const target=goalObj ? goalObj.localToWorld(lp.clone()) : new THREE.Vector3(lp.x, lp.y+GOAL_YOF, TARGET_Z_WORLD);
+
   const goalCx=(goalRect.xMin+goalRect.xMax)/2;
   const dx=target.x-goalCx;
   const halfW=(goalRect.xMax-goalRect.xMin)/2;
-  const reachX=Math.max(0.6,halfW-0.55); // kaleci erisim limiti
-  const diveX=goalCx+Math.max(-reachX,Math.min(reachX,dx));
+  const reachX=Math.max(0.6,halfW-0.55);
+  const diveX=goalCx+clamp(dx,-reachX,reachX);
   let side='center';
   if(dx<-0.35) side='left';
   else if(dx>0.35) side='right';
 
-  const cm={0:'left',1:'center',2:'right'};
-  let saved=false;
-  // Kurtaris olasiligi: hedef erisim icindeyse daha yuksek, disindaysa dusuk ama yine o yone dener
-  const withinReach=Math.abs(dx)<=reachX+0.08;
-  const base=withinReach ? 0.62 : 0.18;
-  const topBonus=(row===0)?-0.10:0; // ust sutlar daha zor
-  saved=Math.random()<(base+topBonus);
+  const yN=(lp.y-goalLocalRect.yMin)/Math.max(0.01,(goalLocalRect.yMax-goalLocalRect.yMin));
 
-  // Kaleci
+  // save probability: reachable + height
+  const withinReach=Math.abs(dx)<=reachX+0.08;
+  const base=withinReach ? 0.60 : 0.16;
+  const highPenalty=yN>0.66 ? -0.12 : 0;
+  const saved=Math.random()<(base+highPenalty);
+
+  // Keeper: ALWAYS from center, then dive after reaction delay (no pre-position)
   if(keeper){
-    kAnim={phase:'dive',t:0,sx:keeper.root.position.x,tx:diveX};
-    playAnim(keeper, pickKAnim(side,row));
+    keeper.root.position.x=0;
+    keeper.root.position.y=0;
+    kAnim={phase:'react',t:0,sx:0,tx:diveX,side,yN};
   }
 
   // Arda kick
   playAnim(arda,'kick');
 
-  // Top
+  // Ball trajectory
   const p0=ballMesh.position.clone();
   const p2=target.clone();
   const p1=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
@@ -570,10 +547,19 @@ function drawFx(){
 
 // ── INPUT ──
 function buildDots(){const cont=document.getElementById('dots');cont.innerHTML='';for(let i=0;i<TOTAL;i++){const d=document.createElement('div');d.className='dot';d.id='dot-'+i;cont.appendChild(d);}}
-canvas.addEventListener('mousemove',e=>{if(gameActive&&canShoot)hover(e.clientX,e.clientY);});
-canvas.addEventListener('click',e=>{if(!gameActive||!canShoot)return;hover(e.clientX,e.clientY);if(hoverCell.r>=0)shoot(hoverCell.r,hoverCell.c);});
-canvas.addEventListener('touchstart',e=>{if(!gameActive||!canShoot)return;const t=e.touches[0];hover(t.clientX,t.clientY);if(hoverCell.r>=0){e.preventDefault();shoot(hoverCell.r,hoverCell.c);}},{passive:false});
-canvas.addEventListener('touchmove',e=>{if(gameActive&&canShoot)hover(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+canvas.addEventListener('mousemove',e=>{updateAimVisual(e.clientX,e.clientY);});
+canvas.addEventListener('click',e=>{
+  if(!gameActive||!canShoot) return;
+  const a=getAimFromPointer(e.clientX,e.clientY);
+  if(a){ shootAt(a.world,a.local); }
+});
+canvas.addEventListener('touchstart',e=>{
+  if(!gameActive||!canShoot) return;
+  const t=e.touches[0];
+  const a=getAimFromPointer(t.clientX,t.clientY);
+  if(a){ e.preventDefault(); shootAt(a.world,a.local); }
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{ if(gameActive&&canShoot){ const t=e.touches[0]; updateAimVisual(t.clientX,t.clientY); }},{passive:true});
 
 // ── ANA DONGU ──
 let lastT=0;
@@ -599,7 +585,16 @@ function loop(ts){
   }
 
   if(keeper){
-    if(kAnim.phase==='dive'){
+    if(kAnim.phase==='react'){
+      kAnim.t+=dt;
+      keeper.root.position.x=0;
+      keeper.root.position.y=0;
+      if(kAnim.t>=K_REACT_DELAY){
+        kAnim.phase='dive';
+        kAnim.t=0;
+        playAnim(keeper, pickKAnim(kAnim.side,kAnim.yN));
+      }
+    }else if(kAnim.phase==='dive'){
       kAnim.t+=dt;
       const u=Math.min(kAnim.t/0.42,1),e=easeOut(u);
       keeper.root.position.x=kAnim.sx+(kAnim.tx-kAnim.sx)*e;
@@ -855,7 +850,7 @@ async function boot(){
         z:localZ,
       };
 
-      rebuildTargets();
+      ensureGoalHitMesh();
     }
   }catch(e){
     console.warn('[Goal.fbx] Yok/hatali (opsiyonel)',e?.message||e);
