@@ -8,16 +8,8 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@600;700&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'Rajdhani',sans-serif;touch-action:manipulation;user-select:none;}
-#wrap{position:relative;width:100vw;height:100dvh;}
-#c{display:block;width:100vw;height:100dvh;touch-action:none;}
-#fx{position:absolute;inset:0;pointer-events:none;z-index:5;}
-#loading{position:fixed;left:0;right:0;top:0;z-index:20;color:#fff;font-family:'Bebas Neue',cursive;letter-spacing:3px;font-size:18px;padding:14px 16px 12px;background:linear-gradient(to bottom,rgba(0,0,0,.78),rgba(0,0,0,.22));backdrop-filter:blur(6px);}
-#loading.hide{display:none;}
-.ldRow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
-.ldPct{opacity:.9;font-size:16px;letter-spacing:2px;}
-.ldBar{margin-top:10px;height:10px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;border:1px solid rgba(255,255,255,.14);}
-.ldFill{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#FF6B00,#FFD700);box-shadow:0 0 18px rgba(255,215,0,.35);transition:width .2s ease;}
+body{background:#0a1a0a;overflow:hidden;height:100dvh;width:100vw;font-family:'Rajdhani',sans-serif;touch-action:manipulation;user-select:none;}
+#c{display:block;width:100vw;height:100dvh;}
 #ui{position:fixed;inset:0;pointer-events:none;z-index:10;}
 #hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:14px 20px 0;background:linear-gradient(to bottom,rgba(0,0,0,0.75),transparent);}
 .hb{text-align:center;}
@@ -25,72 +17,24 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
 .hv{font-family:'Bebas Neue',cursive;font-size:40px;line-height:1;color:#FFD700;text-shadow:0 0 20px rgba(255,215,0,.7);}
 .hv.g{color:#00E676;text-shadow:0 0 20px rgba(0,230,118,.7);}
 .hv.r{color:#FF1744;text-shadow:0 0 20px rgba(255,23,68,.7);}
-#dots{position:absolute;bottom:22%;left:50%;transform:translateX(-50%);display:flex;gap:10px;}
+#dots{position:absolute;bottom:26%;left:50%;transform:translateX(-50%);display:flex;gap:10px;}
 .dot{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);background:transparent;transition:all .35s;}
 .dot.goal{background:#00E676;border-color:#00E676;box-shadow:0 0 12px #00E676;}
 .dot.miss{background:#FF1744;border-color:#FF1744;box-shadow:0 0 12px #FF1744;}
-#banner{position:absolute;bottom:12%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,rgba(255,107,0,.97),rgba(200,15,0,.97));color:#fff;font-family:'Bebas Neue',cursive;font-size:clamp(14px,3.8vw,20px);letter-spacing:2px;padding:11px 28px;border-radius:50px;border:1px solid rgba(255,255,255,.2);box-shadow:0 4px 24px rgba(255,107,0,.55);white-space:nowrap;animation:pulse 1.6s ease-in-out infinite;}
+#banner{position:absolute;bottom:14%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,rgba(255,107,0,.97),rgba(200,15,0,.97));color:#fff;font-family:'Bebas Neue',cursive;font-size:20px;letter-spacing:3px;padding:11px 32px;border-radius:50px;border:1px solid rgba(255,255,255,.2);box-shadow:0 4px 24px rgba(255,107,0,.55);white-space:nowrap;animation:pulse 1.6s ease-in-out infinite;}
 @keyframes pulse{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.04)}}
 #result{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;opacity:0;pointer-events:none;transition:opacity .3s;}
 #result.show{opacity:1;}
 .rbg{position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(5px);}
 .remoji{font-size:80px;position:relative;z-index:1;animation:bIn .45s cubic-bezier(.36,.07,.19,.97);}
 @keyframes bIn{0%{transform:scale(.1);opacity:0}55%{transform:scale(1.25)}100%{transform:scale(1);opacity:1}}
-.rtxt{font-family:'Bebas Neue',cursive;font-size:clamp(40px,10vw,64px);letter-spacing:5px;position:relative;z-index:1;text-shadow:0 4px 24px rgba(0,0,0,.9);}
+.rtxt{font-family:'Bebas Neue',cursive;font-size:64px;letter-spacing:5px;position:relative;z-index:1;text-shadow:0 4px 24px rgba(0,0,0,.9);}
 .rtxt.gt{color:#00E676;}.rtxt.mt{color:#FF1744;}
 .rsub{font-size:18px;color:rgba(255,255,255,.82);position:relative;z-index:1;letter-spacing:1px;}
-#final{
-  position:absolute;
-  inset:0;
-  display:none;
-  flex-direction:column;
-  align-items:center;
-  justify-content:flex-end;
-  padding:0 14px calc(16px + env(safe-area-inset-bottom, 0px));
-}
+#final{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;}
 #final.show{display:flex;}
-.fbg{
-  position:absolute;
-  inset:0;
-  background:
-    radial-gradient(85% 75% at 50% 35%, rgba(0,0,0,.08) 0%, rgba(0,0,0,.55) 62%, rgba(0,0,0,.68) 100%),
-    url('assets/final-bg.png') center/cover no-repeat;
-  filter:saturate(1.10) contrast(1.06);
-}
-.fcard{
-  position:relative;
-  z-index:1;
-  width:min(640px, 96vw);
-  max-width:640px;
-  background:linear-gradient(145deg,rgba(0,0,0,.52),rgba(0,0,0,.74));
-  border:1px solid rgba(255,215,0,.22);
-  border-radius:22px;
-  padding:18px 18px 16px;
-  text-align:left;
-  backdrop-filter:blur(6px);
-  box-shadow:0 18px 50px rgba(0,0,0,.45);
-}
-.fTop{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:10px;}
-.fLeft{min-width:0;}
-.fRight{text-align:right;flex:0 0 auto;}
-.fTitleRow{display:flex;flex-direction:column;gap:4px;}
-.ftitle{margin:0;}
-.fmsg{margin:0;color:rgba(255,255,255,.75);line-height:1.45;}
-.fActions{display:flex;gap:10px;margin-top:14px;}
-.fActions .btnP,.fActions .btnS{margin:0;width:50%;}
-.btnP{padding:14px 18px;}
-.btnS{padding:14px 18px;color:rgba(255,255,255,.78);}
-.btnS:hover{border-color:rgba(255,255,255,.25);}
-
-@media (max-width: 480px){
-  #final{padding:0 12px calc(12px + env(safe-area-inset-bottom, 0px));}
-  .fcard{border-radius:20px;padding:16px 14px 14px;}
-  .ftitle{font-size:42px;letter-spacing:2.5px;}
-  .fscore{font-size:28px;margin:0;}
-  .fmsg{font-size:14px;}
-  .fActions{gap:8px;}
-  .fActions .btnP,.fActions .btnS{width:50%;font-size:18px;letter-spacing:1.5px;padding:13px 12px;}
-}
+.fbg{position:absolute;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);}
+.fcard{position:relative;z-index:1;background:linear-gradient(145deg,rgba(255,107,0,.1),rgba(0,0,0,.7));border:1px solid rgba(255,215,0,.28);border-radius:24px;padding:32px 40px;text-align:center;max-width:320px;width:88%;}
 .ftrophy{font-size:66px;margin-bottom:6px;}
 .ftitle{font-family:'Bebas Neue',cursive;font-size:48px;letter-spacing:3px;margin-bottom:4px;}
 .fscore{font-family:'Bebas Neue',cursive;font-size:32px;color:#FFD700;margin-bottom:10px;}
@@ -99,7 +43,7 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
 .btnP:active{transform:scale(.97);}
 .btnS{background:transparent;color:rgba(255,255,255,.5);font-size:14px;border:1px solid rgba(255,255,255,.15);border-radius:50px;padding:10px 28px;cursor:pointer;width:100%;margin-top:8px;pointer-events:all;}
 #start{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:48px;}
-.sbg{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.92) 0%,rgba(0,0,0,.15) 55%,transparent 100%);pointer-events:none;}
+.sbg{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.92) 0%,rgba(0,0,0,.15) 55%,transparent 100%);}
 .scard{position:relative;z-index:1;text-align:center;width:90%;max-width:340px;}
 .sbrand{font-family:'Bebas Neue',cursive;font-size:12px;letter-spacing:6px;color:#FF6B00;margin-bottom:4px;}
 .stitle{font-family:'Bebas Neue',cursive;font-size:64px;color:#fff;line-height:.9;letter-spacing:2px;text-shadow:0 4px 32px rgba(0,0,0,.9);margin-bottom:10px;}
@@ -107,33 +51,18 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
 .sdesc{font-size:15px;color:rgba(255,255,255,.65);margin-bottom:22px;line-height:1.5;}
 .srules{display:flex;justify-content:center;gap:28px;margin-bottom:24px;}
 .ri{text-align:center;}.ric{font-size:26px;}.rit{font-size:12px;color:rgba(255,255,255,.48);display:block;margin-top:3px;}
-.sform{margin-bottom:14px;text-align:left;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:12px 14px;backdrop-filter:blur(6px);}
-.slab{display:block;font-size:12px;letter-spacing:1px;color:rgba(255,255,255,.55);margin-bottom:8px;}
-.sinp{width:100%;border-radius:14px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.35);color:#fff;padding:12px 12px;font-size:16px;outline:none;}
-.sinp:focus{border-color:rgba(255,215,0,.55);box-shadow:0 0 0 3px rgba(255,215,0,.12);}
-.serr{margin-top:8px;font-size:12px;color:rgba(255,82,82,.92);min-height:16px;}
 </style>
 </head>
 <body>
-<div id="wrap">
-  <canvas id="c"></canvas>
-  <canvas id="fx"></canvas>
-</div>
-<div id="loading">
-  <div class="ldRow">
-    <div id="ldTxt">YÜKLENİYOR</div>
-    <div class="ldPct" id="ldPct">0%</div>
-  </div>
-  <div class="ldBar"><div class="ldFill" id="ldFill"></div></div>
-</div>
+<canvas id="c"></canvas>
 <div id="ui">
   <div id="hud">
     <div class="hb"><span class="hl">GOL</span><div class="hv g" id="sGoal">0</div></div>
     <div class="hb"><span class="hl">KALAN</span><div class="hv" id="sRemain">5</div></div>
-    <div class="hb"><span class="hl">KACTI</span><div class="hv r" id="sMiss">0</div></div>
+    <div class="hb"><span class="hl">KAÇTI</span><div class="hv r" id="sMiss">0</div></div>
   </div>
   <div id="dots"></div>
-  <div id="banner">⚽ KALEYE DOKUN — HEDEF SEC!</div>
+  <div id="banner">⚽ KALEYE DOKUN VE VURGULA!</div>
   <div id="result">
     <div class="rbg"></div>
     <div class="remoji" id="rEmoji">⚽</div>
@@ -143,21 +72,12 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
   <div id="final">
     <div class="fbg"></div>
     <div class="fcard">
-      <div class="fTop">
-        <div class="fLeft">
-          <div class="fTitleRow">
-            <div class="ftitle" id="fTitle">TEBRIKLER!</div>
-            <div class="fmsg" id="fMsg">Mukemmel!</div>
-          </div>
-        </div>
-        <div class="fRight">
-          <div class="fscore" id="fScore">5/5 GOL</div>
-        </div>
-      </div>
-      <div class="fActions">
-        <button class="btnP" type="button" onclick="openBet()">BAHIS AL</button>
-        <button class="btnS" type="button" onclick="openPusulaTelegram()">Pusula Telegram</button>
-      </div>
+      <div class="ftrophy" id="fTrophy">🏆</div>
+      <div class="ftitle" id="fTitle">TEBRIKLER!</div>
+      <div class="fscore" id="fScore">5/5 GOL</div>
+      <div class="fmsg" id="fMsg">Mukemmel!</div>
+      <button class="btnP" onclick="resetGame()">🔄 TEKRAR OYNA</button>
+      <button class="btnS" onclick="shareResult()">📤 Skoru Paylas</button>
     </div>
   </div>
   <div id="start">
@@ -165,661 +85,413 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
     <div class="scard">
       <div class="sbrand">PUSULABET</div>
       <div class="stitle">PENALTI<br><span>SUTLARI</span></div>
-      <div class="sdesc">Arda Guler — kaleye dokun, kose sec.</div>
+      <div class="sdesc">Arda Guler ile kaleciyi gec!<br>9 kose, 5 sut, tam animasyon.</div>
       <div class="srules">
         <div class="ri"><div class="ric">⚽</div><span class="rit">5 Atis</span></div>
         <div class="ri"><div class="ric">🥅</div><span class="rit">9 Kose</span></div>
-        <div class="ri"><div class="ric">✨</div><span class="rit">3D</span></div>
+        <div class="ri"><div class="ric">✨</div><span class="rit">Efektler</span></div>
       </div>
-      <div class="sform">
-        <label class="slab" for="pbUser">Pusulabet Kullanıcı Adı</label>
-        <input class="sinp" id="pbUser" autocomplete="username" inputmode="text" maxlength="24" placeholder="ornek: pusulaci123">
-        <div class="serr" id="pbErr"></div>
-      </div>
-      <button type="button" class="btnP" id="btnStart" style="font-size:26px;padding:16px;pointer-events:all;">⚽ BASLAT</button>
+      <button class="btnP" onclick="startGame()" style="font-size:26px;padding:16px;pointer-events:all;">⚽ BASLAT</button>
     </div>
   </div>
 </div>
 
-<script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
-</script>
-<script type="module">
-import * as THREE from 'three';
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-
-// ── ASSET YOLLARI ──
-const BASE = new URL('assets/', new URL('.', import.meta.url)).href;
-const ASSET = (p)=>new URL(p, BASE).href;
-
-// ── SABITLER ──
-const TOTAL=5, BALL_R=0.11;
-// Gercek olculer: kale 7.32m x 2.44m, penalti 11m
-const GW=7.32, GH=2.44;
-// Goal line Z (world). Penalti noktasi 11m onde (kamera tarafina dogru).
-const GZ=-16;
-const PENALTY_Z = GZ + 11; // = -5
-// Goal modelinin BG ile cakismamasi icin biraz geride durmasi
-const GOAL_MODEL_Z = GZ - 0.45;
-// Hedef/impact duzlemi: kale icinde, kalecinin arkasinda
-const TARGET_Z_WORLD = GZ + 0.02;
-// Fallback: goal fbx yoksa secim rect'i icin y offset
-const GOAL_YOF=0.22;
-// FBX Mixamo modelleri genellikle 100x buyuk gelir (cm cinsinden)
-// normalizeChar ile hedef boya scale edilir
-// Arda oncekine gore ~%30 kucuk
-const ARDA_TARGET_H   = 1.28;  // metre
-// Kaleci kale icinde gorunur ve daha gercekci
-const KEEPER_TARGET_H = 1.78;  // metre
-
-const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡"];
-const MMSG=["Kaleci tuttu! 🧤","Az kaldi! 😅","Direkce carpti!","Kacti! 😬","Kaleci sezdi! 👀"];
-const CC=['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'];
-
-// ── TELEGRAM ──
+<script>
 let tg=null;
-try{tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch(e){}
+try{tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();tg.setHeaderColor('#000');}}catch(e){}
 
-// ── LOADING UI (progress bar) ──
-const ld=document.getElementById('loading');
-const ldFill=document.getElementById('ldFill');
-const ldPct=document.getElementById('ldPct');
-const btnStart=document.getElementById('btnStart');
-const pbUserEl=document.getElementById('pbUser');
-const pbErrEl=document.getElementById('pbErr');
-const PB_USER_KEY='pusulabet_username';
-let pusulabetUsername='';
-
-function normPbUser(v){
-  return (v||'').trim().replace(/\s+/g,' ').slice(0,24);
-}
-function setPbError(msg){
-  if(pbErrEl) pbErrEl.textContent = msg || '';
-}
-function readPbUser(){
-  const v = pbUserEl ? pbUserEl.value : '';
-  return normPbUser(v);
-}
-function loadPbUser(){
-  try{
-    pusulabetUsername = normPbUser(localStorage.getItem(PB_USER_KEY) || '');
-  }catch(e){
-    pusulabetUsername = '';
-  }
-  if(pbUserEl) pbUserEl.value = pusulabetUsername;
-}
-function persistPbUser(v){
-  pusulabetUsername = normPbUser(v);
-  try{ localStorage.setItem(PB_USER_KEY, pusulabetUsername); }catch(e){}
-}
-loadPbUser();
-if(btnStart){
-  btnStart.disabled=true;
-  btnStart.style.opacity='0.65';
-  btnStart.textContent='YÜKLENİYOR...';
-}
-
-// ── THREE.JS ──
 const canvas=document.getElementById('c');
-const fx=document.getElementById('fx');
-const fctx=fx.getContext('2d');
-let W=innerWidth,H=innerHeight;
+const ctx=canvas.getContext('2d');
+let W,H,scaleX,scaleY;
 
-const manager = new THREE.LoadingManager();
-function setLoadProgress(p){
-  const pct=Math.round(clamp(p,0,1)*100);
-  if(ldPct) ldPct.textContent=pct+'%';
-  if(ldFill) ldFill.style.width=pct+'%';
-  if(btnStart) btnStart.textContent = pct>=100 ? '⚽ BASLAT' : ('YÜKLENİYOR... '+pct+'%');
-  if(pct>=100){
-    if(btnStart){
-      btnStart.disabled=false;
-      btnStart.style.opacity='';
-      btnStart.textContent='⚽ BASLAT';
-    }
-    if(ld) ld.classList.add('hide');
-  }
-}
-manager.onProgress=(_url, itemsLoaded, itemsTotal)=>{
-  if(itemsTotal>0) setLoadProgress(itemsLoaded/itemsTotal);
-};
-manager.onLoad=()=>setLoadProgress(1);
-
-const scene=new THREE.Scene();
-const cam=new THREE.PerspectiveCamera(42,W/H,0.1,220);
-const isMobile = ()=> window.innerWidth < 768;
-
-// Kamera kompozisyon presetleri (oyun mantigina dokunmadan kadraj duzeltme)
-const CAMERA_PRESETS = {
-  desktop: {
-    pos: new THREE.Vector3(0, 1.65, 9.6),
-    look: new THREE.Vector3(0, 1.25, GZ + 2.2),
-    fovPortrait: 58,
-    fovLandscape: 42,
-  },
-  mobile: {
-    // Mobilde sahne fazla uzak gorunmesin: kamerayi yaklastir + FOV'i daralt
-    pos: new THREE.Vector3(0, 1.56, 6.85),
-    look: new THREE.Vector3(0, 1.22, GZ + 2.15),
-    fovPortrait: 38,
-    fovLandscape: 44,
-  }
-};
-
-function applyCameraPreset(){
-  const preset = isMobile() ? CAMERA_PRESETS.mobile : CAMERA_PRESETS.desktop;
-  cam.position.copy(preset.pos);
-  cam.fov = (H > W) ? preset.fovPortrait : preset.fovLandscape;
-  cam.updateProjectionMatrix();
-  cam.lookAt(preset.look);
-}
-
-const rdr=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
-rdr.setPixelRatio(Math.min(devicePixelRatio,1.5));
-rdr.outputColorSpace=THREE.SRGBColorSpace;
-rdr.toneMapping=THREE.ACESFilmicToneMapping;
-rdr.toneMappingExposure=1.05;
-rdr.autoClear=false;
-
-// ── BACKGROUND (ayri scene: full-screen cover) ──
-const bgScene=new THREE.Scene();
-const bgCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
-const bgPlane=new THREE.Mesh(
-  new THREE.PlaneGeometry(2,2),
-  new THREE.MeshBasicMaterial({depthTest:false,depthWrite:false})
-);
-bgPlane.frustumCulled=false;
-bgPlane.renderOrder=-1000;
-bgScene.add(bgPlane);
-let bgTex=null;
-function updateBgCover(){
-  if(!bgTex||!bgTex.image) return;
-  const iw=bgTex.image.width||1536;
-  const ih=bgTex.image.height||1024;
-  const imgAspect=iw/ih;
-  const viewAspect=W/H;
-  // cover: ekranı doldur, taşanı kırp
-  if(viewAspect>imgAspect){
-    const scale=viewAspect/imgAspect;
-    bgTex.repeat.set(1,1/scale);
-    bgTex.offset.set(0,(1-bgTex.repeat.y)/2);
-  }else{
-    const scale=imgAspect/viewAspect;
-    bgTex.repeat.set(1/scale,1);
-    bgTex.offset.set((1-bgTex.repeat.x)/2,0);
-  }
-  bgTex.needsUpdate=true;
-}
+// Referans çözünürlük (bg oranına göre)
+const REF_W=1536, REF_H=1024;
 
 function resize(){
-  W=innerWidth;H=innerHeight;
-  canvas.width=W;canvas.height=H;
-  fx.width=W;fx.height=H;
-  rdr.setSize(W,H,false);
-  cam.aspect=W/H;
-  applyCameraPreset();
-  updateBgCover();
+  W=canvas.width=window.innerWidth;
+  H=canvas.height=window.innerHeight;
+  scaleX=W/REF_W;
+  scaleY=H/REF_H;
 }
 resize();
-addEventListener('resize',resize);
-// Mobil WebView'lerde (Telegram dahil) bazen sadece visualViewport degisir.
-if (window.visualViewport){
-  window.visualViewport.addEventListener('resize', resize);
-  window.visualViewport.addEventListener('scroll', resize);
+window.addEventListener('resize',resize);
+
+// Görseller
+const bgImg=new Image();    bgImg.src='bg.png';
+const keeperImg=new Image();keeperImg.src='keeper.png';
+const playerImg=new Image();playerImg.src='player.png';
+
+// Sprite boyutları
+// keeper.png: 1280x853, 4 frame → frame w=320, h=853
+const K_SW=320, K_SH=853;
+// player.png: 1280x853, 4 frame → frame w=320, h=853
+const P_SW=320, P_SH=853;
+
+// BG kale - piksel analizi kesin: sol=289 sag=1248 ust=83 alt=443
+const GOAL = { x:289, y:83, w:959, h:360 };
+const PENALTY_SPOT = { x:771, y:714 }; // penalti noktasi
+
+const TOTAL=5;
+const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡","Aglari salladi! 🌊"];
+const MMSG=["Kaleci tuttu! 🧤","Az kaldi! 😅","Direkce carpti!","Kacti! 😬","Kaleci sezdi! 👀","Kurtaris! 🙌"];
+const COLORS=['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'];
+
+let goals=0,misses=0,shots=0,gameActive=false,canShoot=true;
+let hoverCell={r:-1,c:-1};
+let particles=[],confetti=[];
+let netShake=0,netShakeDir=0;
+
+// Koordinat dönüştürme (responsive)
+function sx(x){return x*scaleX;}
+function sy(y){return y*scaleY;}
+
+// Kale rect (ekran koordinatı)
+function gr(){return{x:sx(GOAL.x),y:sy(GOAL.y),w:sx(GOAL.w),h:sy(GOAL.h)};}
+
+// ── Kaleci ──
+let kp={
+  frame:0, x:0, y:0,
+  displayW:0, displayH:0,
+  phase:'idle', t:0,
+  startX:0, targetX:0, targetFrame:0
+};
+
+function initKeeper(){
+  const g=gr();
+  kp.displayW = g.w * 0.24;
+  kp.displayH = kp.displayW * (K_SH/K_SW);
+  kp.x = g.x + g.w/2;
+  // Ayaklar kale alt çizgisinde
+  kp.y = g.y + g.h;
+  kp.frame=0; kp.phase='idle'; kp.t=0;
 }
 
-// Isiklar
-scene.add(new THREE.AmbientLight(0xffffff,0.8));
-const sun=new THREE.DirectionalLight(0xfff5e6,1.0);
-sun.position.set(-8,22,12);
-scene.add(sun);
-const fill=new THREE.DirectionalLight(0xaaccff,0.25);
-fill.position.set(10,8,-5);
-scene.add(fill);
+function drawKeeper(){
+  if(!keeperImg.complete||!keeperImg.naturalWidth) return;
+  const kw=kp.displayW, kh=kp.displayH;
+  const useFrame = kp.frame===3 ? 2 : kp.frame;
+  const flip = kp.frame===3;
+  // drawY: sprite içinde ayak %63.4 aşağıda
+  const drawY = kp.y - kh*K_FOOT;
 
-// Zemin
-const gnd=new THREE.Mesh(
-  new THREE.PlaneGeometry(120,120),
-  new THREE.MeshStandardMaterial({transparent:true,opacity:0,depthWrite:false})
-);
-gnd.rotation.x=-Math.PI/2;
-scene.add(gnd);
+  ctx.save();
+  ctx.globalAlpha=0.2;ctx.fillStyle='#000';
+  ctx.beginPath();ctx.ellipse(kp.x,kp.y,kw*0.3,kh*0.02,0,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;
 
-// Penalti noktasi (world-space: kale merkezinden 11m)
-const wm=new THREE.MeshBasicMaterial({color:0xffffff});
-const sp=new THREE.Mesh(new THREE.CircleGeometry(0.22,32),wm);
-sp.rotation.x=-Math.PI/2;sp.position.set(0,0.02,PENALTY_Z);scene.add(sp);
-const ln=new THREE.Mesh(new THREE.PlaneGeometry(9.15,0.12),wm);
-ln.rotation.x=-Math.PI/2;ln.position.set(0,0.02,PENALTY_Z-5.5);scene.add(ln);
-
-// Kale agzi rect'i (world) — goal.fbx yuklenince bbox'tan guncellenir
-let goalRect={xMin:-GW/2,xMax:GW/2,yMin:GOAL_YOF,yMax:GOAL_YOF+GH,z:GZ};
-// Target plane'in world Z'i (goalun icinde, kaleci arkasi) — sabit
-// Goal local uzayinda hedef rect (hiG goalObj child olunca local yerlesim buradan gelir)
-let goalLocalRect={xMin:-GW/2,xMax:GW/2,yMin:0,yMax:GH,z:0};
-
-// ── SAHNE OBJELERI (TDZ hatasini onlemek icin erken tanim) ──
-let arda=null;   // {models:{idle,kick}, mixers:{idle,kick}, actions:{idle,kick}, current}
-let keeper=null; // {models:{idle,dive_left,...}, mixers:{...}, actions:{...}, current}
-let goalObj=null; // goal.fbx
-let ballObj=null; // ball.fbx (opsiyonel)
-
-// Goal hit plane mesh (raycast): goal ile aynı düzlemde ve aynı dönüşte
-let goalHitMesh=null;
-const rc=new THREE.Raycaster();
-const ndc=new THREE.Vector2();
-const hit=new THREE.Vector3();
-
-// Goal hit plane mesh (raycast): goal ile aynı düzlemde ve aynı dönüşte
-function ensureGoalHitMesh(){
-  const w=Math.max(0.01,goalLocalRect.xMax-goalLocalRect.xMin);
-  const h=Math.max(0.01,goalLocalRect.yMax-goalLocalRect.yMin);
-  const cx=(goalLocalRect.xMin+goalLocalRect.xMax)/2;
-  const cy=(goalLocalRect.yMin+goalLocalRect.yMax)/2;
-
-  if(!goalHitMesh){
-    goalHitMesh=new THREE.Mesh(
-      new THREE.PlaneGeometry(w,h),
-      new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthTest:false,depthWrite:false})
-    );
-    goalHitMesh.name='goalHitMesh';
-    goalHitMesh.renderOrder=-1;
-  }else{
-    goalHitMesh.geometry.dispose();
-    goalHitMesh.geometry=new THREE.PlaneGeometry(w,h);
+  if(flip){
+    ctx.translate(kp.x+kw/2,0);ctx.scale(-1,1);
+    ctx.drawImage(keeperImg,useFrame*K_SW,0,K_SW,K_SH,-kw,drawY,kw,kh);
+  } else {
+    ctx.drawImage(keeperImg,useFrame*K_SW,0,K_SW,K_SH,kp.x-kw/2,drawY,kw,kh);
   }
+  ctx.restore();
+}
 
-  goalHitMesh.position.set(cx,cy,goalLocalRect.z);
-
-  if(goalObj){
-    if(goalHitMesh.parent!==goalObj) goalObj.add(goalHitMesh);
-  }else{
-    if(goalHitMesh.parent!==scene) scene.add(goalHitMesh);
-    goalHitMesh.position.set(0,GOAL_YOF+GH/2,TARGET_Z_WORLD);
+function updateKeeper(dt){
+  if(kp.phase==='idle')return;
+  kp.t+=dt;
+  const ease=t=>t<.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1;
+  if(kp.phase==='diving'){
+    const p=Math.min(kp.t/0.32,1);
+    kp.x=kp.startX+(kp.targetX-kp.startX)*ease(p);
+    kp.frame=kp.targetFrame;
+    if(p>=1)kp.phase='hold';
+  }
+  if(kp.phase==='back'){
+    const g=gr(), cx=g.x+g.w/2;
+    const p=Math.min(kp.t/0.65,1);
+    kp.x=kp.startX+(cx-kp.startX)*(1-(1-p)*(1-p));
+    if(p>=1){kp.phase='idle';kp.frame=0;kp.x=cx;}
   }
 }
-ensureGoalHitMesh();
 
-// Aim marker: hedef noktasinda kucuk isaret (desktop hover + mobile tap feedback)
-const aimMarker=new THREE.Mesh(
-  new THREE.CircleGeometry(0.12,24),
-  new THREE.MeshBasicMaterial({color:0xffd700,transparent:true,opacity:0.0,depthTest:true,depthWrite:false})
-);
-aimMarker.rotation.x=-Math.PI/2;
-aimMarker.renderOrder=3;
-scene.add(aimMarker);
+// ── Oyuncu ──
+let pl={frame:0,x:0,y:0,displayW:0,displayH:0,phase:'idle',t:0};
 
-let aim={inside:false, world:new THREE.Vector3(), local:new THREE.Vector3()};
-
-function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
-
-function getAimFromPointer(cx,cy){
-  if(!goalHitMesh) return null;
-  ndc.x=(cx/W)*2-1; ndc.y=-(cy/H)*2+1;
-  rc.setFromCamera(ndc,cam);
-  const ints=rc.intersectObject(goalHitMesh,false);
-  if(!ints||ints.length===0) return null;
-
-  const wp=ints[0].point;
-  const lp=goalObj ? goalObj.worldToLocal(wp.clone()) : wp.clone();
-
-  // clamp to goal local bounds
-  lp.x=clamp(lp.x,goalLocalRect.xMin,goalLocalRect.xMax);
-  lp.y=clamp(lp.y,goalLocalRect.yMin,goalLocalRect.yMax);
-  lp.z=goalLocalRect.z;
-
-  const w=goalObj ? goalObj.localToWorld(lp.clone()) : new THREE.Vector3(lp.x, lp.y+GOAL_YOF, TARGET_Z_WORLD);
-  return {world:w, local:lp};
+function initPlayer(){
+  pl.displayW = Math.min(W,H)*0.30;
+  pl.displayH = pl.displayW*(P_SH/P_SW);
+  pl.x = sx(PENALTY_SPOT.x);
+  // Ayaklar penaltı noktasında: sprite içinde ayak %75.3 aşağıda
+  // pl.y = ayak y konumu → drawImage y = pl.y - displayH*0.753
+  pl.y = sy(PENALTY_SPOT.y);
+  pl.frame=0; pl.phase='idle'; pl.t=0;
 }
 
-// ── FBX YUKLEME ──
-const fbxLoader=new FBXLoader(manager);
+// Player ayak offset (sprite analizi: ayak y=642/853=0.753)
+const P_FOOT = 0.753;
+// Keeper ayak offset (sprite analizi: ayak y=541/853=0.634)
+const K_FOOT = 0.634;
 
-function loadFBX(url){
-  return new Promise(resolve=>{
-    fbxLoader.load(url,obj=>resolve(obj),undefined,err=>{
-      console.error('[FBX] Yuklenemedi:',url,err?.message||err);
-      resolve(null);
-    });
-  });
+function drawPlayer(){
+  if(!playerImg.complete||!playerImg.naturalWidth) return;
+  const pw=pl.displayW, ph=pl.displayH;
+  // drawY: sprite'ı ayak noktasına hizala
+  const drawY = pl.y - ph*P_FOOT;
+  ctx.save();
+  ctx.globalAlpha=0.25;ctx.fillStyle='#000';
+  ctx.beginPath();ctx.ellipse(pl.x,pl.y,pw*0.18,ph*0.015,0,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;
+  ctx.drawImage(playerImg,pl.frame*P_SW,0,P_SW,P_SH,pl.x-pw/2,drawY,pw,ph);
+  ctx.restore();
 }
 
-// FBX modelini normalize et: hedef yukseklige scale, ayaklari y=0'a getir
-function normalizeChar(obj, targetH){
-  // FBX Mixamo modelleri cm cinsinden gelir (100x buyuk)
-  // Once bbox olc, sonra scale ayarla
-  obj.updateMatrixWorld(true);
-  const box=new THREE.Box3().setFromObject(obj);
-  const sz=new THREE.Vector3();
-  box.getSize(sz);
-  if(sz.y<0.001){console.warn('normalizeChar: sifir yukseklik');return;}
-  const s=targetH/sz.y;
-  obj.scale.setScalar(s);
-  obj.updateMatrixWorld(true);
-  // Ayaklari y=0'a getir
-  const b2=new THREE.Box3().setFromObject(obj);
-  obj.position.y-=b2.min.y;
-}
-
-// ── KARAKTER YAPISI ──
-// Her FBX dosyasi kendi model+mixer+action ikilisiyle calisir
-// Animasyon gecisi: onceki model gizlenir, yeni model gosterilir
-
-// (moved earlier) arda/keeper/goalObj/ballObj
-
-function playAnim(ch, name){
-  if(!ch || !ch.actions[name]) return;
-  if(ch.current===name) return;
-
-  // Onceki modeli gizle
-  const prev=ch.models[ch.current];
-  if(prev) prev.visible=false;
-
-  // Onceki action'i durdur
-  const prevAct=ch.actions[ch.current];
-  if(prevAct) prevAct.stop();
-
-  // Yeni modeli goster
-  const next=ch.models[name];
-  if(next) next.visible=true;
-
-  // Yeni action'i baslat
-  ch.current=name;
-  ch.actions[name].reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
-}
-
-function tickChar(ch, dt){
-  if(!ch) return;
-  Object.values(ch.mixers).forEach(mx=>mx.update(dt));
-}
-
-// ── OYUN DURUMU ──
-let ballMesh=null;
-let goals=0,misses=0,shots=0,gameActive=false,canShoot=true,ready=false;
-let parts=[],confs=[];
-let ballAnim={on:false,t:0,dur:0.55,p0:null,p1:null,p2:null};
-let ballCaught=false;
-let ballCatchAnchor=null;
-const _tmpV=new THREE.Vector3();
-const _tmpV2=new THREE.Vector3();
-let kAnim={phase:'idle',t:0,sx:0,tx:0,side:'center',yN:0};
-const K_REACT_DELAY=0.14;
-const PRE_SHOT_DELAY=1.0;      // hedef secildikten sonra bekleme (s)
-const KICK_CONTACT_DELAY=0.26; // kick animasyonunda topa temas (s)
-let shotTarget=null;
-const DEBUG_SHOT=false;
-let pendingShotTimer=null;
-let pendingKickTimer=null;
-
-function easeOut(t){return 1-Math.pow(1-t,3);}
-function easeIO(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
-
-function getKeeperCatchAnchor(){
-  if(!keeper) return null;
-  const model = keeper.models?.[keeper.current] || keeper.root;
-  if(!model) return keeper.root;
-  let best=null;
-  model.traverse(o=>{
-    if(!o || !o.isBone || !o.name) return;
-    const n=o.name.toLowerCase();
-    // Mixamo: mixamorigRightHand / LeftHand etc.
-    if(n.includes('righthand') || n.includes('lefthand')) best=o;
-    if(!best && (n.includes('hand') || n.includes('wrist') || n.includes('forearm') || n.includes('spine2') || n.includes('chest'))) best=o;
-  });
-  return best || model;
-}
-
-function detachBallToScene(){
-  if(!ballMesh) return;
-  if(ballMesh.parent && ballMesh.parent !== scene){
-    ballMesh.getWorldPosition(_tmpV);
-    scene.add(ballMesh);
-    ballMesh.position.copy(_tmpV);
+function updatePlayer(dt){
+  if(pl.phase==='idle')return;
+  pl.t+=dt;
+  if(pl.phase==='running'){
+    const fi=Math.min(Math.floor(pl.t/0.12),2);
+    pl.frame=fi;
+    if(fi>=2){pl.phase='kicking';pl.t=0;}
   }
-  ballCaught=false;
-  ballCatchAnchor=null;
+  if(pl.phase==='kicking'){
+    pl.frame=3;
+    if(pl.t>0.4)pl.phase='done';
+  }
 }
 
-function attachBallToKeeper(){
-  if(!ballMesh || !keeper) return;
-  const anchor=getKeeperCatchAnchor();
-  if(!anchor) return;
-  detachBallToScene();
-  ballCatchAnchor=anchor;
-  anchor.add(ballMesh);
+// ── Top ──
+let bl={x:0,y:0,r:0,scale:1,rot:0,rotV:0,phase:'idle',t:0,sx:0,sy2:0,tx:0,ty:0,dur:0.5,arc:0};
 
-  // Offset: anim tipine gore kabaca elde/goguste dursun (bone yoksa modele gore calisir)
-  const animName = (keeper.current||'').toLowerCase();
-  let ox=0, oy=1.05, oz=0.28;
-  if(animName.includes('low')){ oy=0.58; oz=0.22; ox=animName.includes('right')?0.18:-0.18; }
-  else if(animName.includes('dive')){ oy=0.85; oz=0.26; ox=animName.includes('right')?0.22:-0.22; }
-  else if(animName.includes('sidestep')){ oy=1.0; oz=0.32; ox=0.10; }
-
-  ballMesh.position.set(ox,oy,oz);
-  ballMesh.rotation.set(0,0,0);
-  ballAnim.on=false;
-  ballCaught=true;
+function initBall(){
+  bl.r=Math.min(W,H)*0.034;
+  // Top penaltı noktasında
+  bl.x=sx(PENALTY_SPOT.x);
+  bl.y=sy(PENALTY_SPOT.y);
+  bl.scale=1;bl.rot=0;bl.rotV=0;bl.phase='idle';bl.t=0;
 }
 
-// ── TARGETING (tam 3D raycast) ──
-function updateAimVisual(cx,cy){
-  if(!gameActive||!canShoot){ aim.inside=false; aimMarker.material.opacity=0; canvas.style.cursor='default'; return; }
-  const a=getAimFromPointer(cx,cy);
-  if(!a){ aim.inside=false; aimMarker.material.opacity=0; canvas.style.cursor='default'; return; }
-  aim.inside=true;
-  aim.world.copy(a.world);
-  aim.local.copy(a.local);
-  aimMarker.position.set(a.world.x,0.012,a.world.z); // yere projekte marker
-  aimMarker.material.opacity=0.55;
-  canvas.style.cursor='crosshair';
+function drawBall(){
+  const bx=bl.x,by=bl.y,r=bl.r*bl.scale;
+  ctx.save();ctx.translate(bx,by);ctx.rotate(bl.rot);
+  // Gölge
+  ctx.save();ctx.globalAlpha=0.25*bl.scale;ctx.fillStyle='#000';
+  ctx.beginPath();ctx.ellipse(0,r*1.1,r*0.85,r*0.18,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  // Zemin glow
+  if(bl.phase==='idle'){
+    ctx.save();ctx.globalAlpha=0.4+0.25*Math.sin(Date.now()*.004);
+    const rg=ctx.createRadialGradient(0,r*.1,0,0,r*.1,r*1.45);
+    rg.addColorStop(0,'rgba(0,255,100,0)');rg.addColorStop(.65,'rgba(0,255,100,0.5)');rg.addColorStop(1,'rgba(0,255,100,0)');
+    ctx.fillStyle=rg;ctx.beginPath();ctx.ellipse(0,r*.1,r*1.38,r*.3,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  }
+  // Gövde
+  const bg2=ctx.createRadialGradient(-r*.3,-r*.3,0,0,0,r);
+  bg2.addColorStop(0,'#fff');bg2.addColorStop(.65,'#ddd');bg2.addColorStop(1,'#bbb');
+  ctx.fillStyle=bg2;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Siyah pentagon
+  ctx.fillStyle='rgba(10,10,10,0.88)';ctx.beginPath();
+  for(let i=0;i<5;i++){const a=(i*72-90)*Math.PI/180;i===0?ctx.moveTo(Math.cos(a)*r*.5,Math.sin(a)*r*.5):ctx.lineTo(Math.cos(a)*r*.5,Math.sin(a)*r*.5);}
+  ctx.closePath();ctx.fill();
+  // Yan pentagonlar
+  for(let s=0;s<5;s++){const ca=(s*72-90)*Math.PI/180,cx2=Math.cos(ca)*r*.78,cy2=Math.sin(ca)*r*.78;ctx.save();ctx.translate(cx2,cy2);ctx.rotate(ca+Math.PI);ctx.fillStyle='rgba(10,10,10,0.35)';ctx.beginPath();for(let i=0;i<5;i++){const a=(i*72-90)*Math.PI/180;i===0?ctx.moveTo(Math.cos(a)*r*.22,Math.sin(a)*r*.22):ctx.lineTo(Math.cos(a)*r*.22,Math.sin(a)*r*.22);}ctx.closePath();ctx.fill();ctx.restore();}
+  // Parlaklık
+  const sh=ctx.createRadialGradient(-r*.32,-r*.32,0,-r*.32,-r*.32,r*.55);
+  sh.addColorStop(0,'rgba(255,255,255,0.75)');sh.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=sh;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  ctx.restore();
 }
 
-function pickKAnim(side,yN){
-  const high=yN>0.66;
-  const low=yN<0.33;
-  if(high) return side==='left'?'dive_left':(side==='right'?'dive_right':(Math.random()<0.5?'dive_left':'dive_right'));
-  if(low)  return side==='left'?'save_low_left':(side==='right'?'save_low_right':'save_low_left');
-  if(side==='center') return Math.random()<0.5?'sidestep_left':'sidestep_right';
-  return side==='left'?'dive_left':'dive_right';
+function updateBall(dt){
+  if(bl.phase!=='flying')return;
+  bl.t+=dt/bl.dur;
+  const t=Math.min(bl.t,1);
+  const e=t<.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1;
+  bl.x=bl.sx+(bl.tx-bl.sx)*e;
+  bl.y=bl.sy2+(bl.ty-bl.sy2)*e-Math.sin(t*Math.PI)*bl.arc;
+  bl.scale=1-t*0.65;
+  bl.rot+=bl.rotV*dt;
+  if(t>=1){bl.phase='done';bl.scale=0.35;}
 }
 
-function shootAt(worldTarget, localTarget){
-  if(!ready||!canShoot||!gameActive) return;
+// ── Parçacıklar ──
+function spawnParts(cx,cy){
+  for(let i=0;i<35;i++){
+    const a=Math.random()*Math.PI*2,s=1.5+Math.random()*5;
+    particles.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,decay:.022+Math.random()*.02,r:2+Math.random()*5,col:Math.random()<.5?'#00E676':'#FFD700'});
+  }
+}
+function spawnConfetti(cx,cy){
+  for(let i=0;i<90;i++){
+    const a=(Math.random()-.5)*Math.PI*1.5-Math.PI/2,s=5+Math.random()*12;
+    confetti.push({x:cx,y:cy,vx:Math.cos(a)*s+(Math.random()-.5)*4,vy:Math.sin(a)*s,w:5+Math.random()*9,h:3+Math.random()*5,rot:Math.random()*Math.PI*2,rotV:(Math.random()-.5)*.35,life:1,decay:.007+Math.random()*.008,col:COLORS[Math.floor(Math.random()*COLORS.length)]});
+  }
+}
+function drawParticles(){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=.18;p.life-=p.decay;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);ctx.fill();ctx.restore();
+  }
+  for(let i=confetti.length-1;i>=0;i--){
+    const c=confetti[i];c.x+=c.vx;c.y+=c.vy;c.vy+=.28;c.vx*=.99;c.rot+=c.rotV;c.life-=c.decay;
+    if(c.life<=0){confetti.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=c.life;ctx.translate(c.x,c.y);ctx.rotate(c.rot);ctx.fillStyle=c.col;ctx.fillRect(-c.w/2,-c.h/2,c.w,c.h);ctx.restore();
+  }
+}
+
+// ── Ağ sallantısı ──
+function drawNetShake(){
+  if(netShake<=0.5) return;
+  const g=gr();
+  const shX=netShake*Math.sin(Date.now()*.05)*netShakeDir*0.4;
+  const shY=netShake*Math.abs(Math.sin(Date.now()*.07))*0.3;
+  ctx.save();ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=2;
+  // Dikey flash çizgiler
+  for(let i=0;i<6;i++){
+    const x=g.x+g.w*i/5;
+    ctx.globalAlpha=netShake/16*0.6*Math.random();
+    ctx.beginPath();ctx.moveTo(x+shX,g.y);ctx.lineTo(x+shX*0.3,g.y+g.h+shY);ctx.stroke();
+  }
+  ctx.restore();
+  netShake*=0.88;
+}
+
+// ── Hücreler ──
+function drawCells(){
+  if(!canShoot||!gameActive) return;
+  const g=gr(),cw=g.w/3,ch=g.h/3;
+  for(let r=0;r<3;r++) for(let c=0;c<3;c++){
+    const x=g.x+c*cw,y=g.y+r*ch;
+    const isH=hoverCell.r===r&&hoverCell.c===c;
+    if(isH){
+      ctx.save();
+      ctx.fillStyle='rgba(255,215,0,0.18)';ctx.strokeStyle='rgba(255,215,0,0.85)';ctx.lineWidth=2;
+      ctx.beginPath();ctx.roundRect(x+2,y+2,cw-4,ch-4,4);ctx.fill();ctx.stroke();
+      const mx=x+cw/2,my=y+ch/2,cr=Math.min(cw,ch)*.2;
+      ctx.strokeStyle='rgba(255,215,0,0.7)';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.arc(mx,my,cr,0,Math.PI*2);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(mx-cr*.7,my);ctx.lineTo(mx+cr*.7,my);ctx.moveTo(mx,my-cr*.7);ctx.lineTo(mx,my+cr*.7);ctx.stroke();
+      ctx.restore();
+    }
+  }
+}
+
+// ── Atış ──
+function shoot(row,col){
+  if(!canShoot||!gameActive)return;
   canShoot=false;
   document.getElementById('banner').style.display='none';
-  // hedef noktasi secildi — kisa marker goster
-  aimMarker.material.opacity=0.75;
+  hoverCell={r:-1,c:-1};
 
-  // clamp again for safety
-  const lp=localTarget ? localTarget.clone() : (goalObj?goalObj.worldToLocal(worldTarget.clone()):worldTarget.clone());
-  lp.x=clamp(lp.x,goalLocalRect.xMin,goalLocalRect.xMax);
-  lp.y=clamp(lp.y,goalLocalRect.yMin,goalLocalRect.yMax);
-  lp.z=goalLocalRect.z;
-  // worldTarget zaten goal plane uzerinde + clamped geliyor; onu dogrudan kullan (mapping drift olmasin)
-  const target=worldTarget ? worldTarget.clone() : (goalObj ? goalObj.localToWorld(lp.clone()) : new THREE.Vector3(lp.x, lp.y+GOAL_YOF, TARGET_Z_WORLD));
-  shotTarget=target.clone();
+  const g=gr(),cw=g.w/3,ch=g.h/3;
+  const tx=g.x+col*cw+cw/2, ty=g.y+row*ch+ch/2;
 
-  const goalCx=(goalRect.xMin+goalRect.xMax)/2;
-  const dx=target.x-goalCx;
-  const halfW=(goalRect.xMax-goalRect.xMin)/2;
-  const reachX=Math.max(0.6,halfW-0.55);
-  const diveX=goalCx+clamp(dx,-reachX,reachX);
-  let side='center';
-  if(dx<-0.35) side='left';
-  else if(dx>0.35) side='right';
+  // Kaleci hareketi
+  const rand=Math.random();
+  let side;
+  if(col===0)      side=rand<.50?'left':(rand<.75?'center':'right');
+  else if(col===2) side=rand<.50?'right':(rand<.75?'center':'left');
+  else             side=rand<.33?'left':(rand<.66?'center':'right');
 
-  const yN=(lp.y-goalLocalRect.yMin)/Math.max(0.01,(goalLocalRect.yMax-goalLocalRect.yMin));
+  const sideX={left:g.x+g.w*.17, center:g.x+g.w*.5, right:g.x+g.w*.83};
+  kp.startX=kp.x; kp.targetX=sideX[side];
+  // Frame: sol=1(dive-left), orta=0(idle), sag=3(dive-upright mirror of 2)
+  // row 0 = üst → farklı frame
+  const colN=side==='left'?0:(side==='right'?2:1);
+  if(colN===0) kp.targetFrame=row===0?2:1;
+  else if(colN===2) kp.targetFrame=3;
+  else kp.targetFrame=Math.random()<.5?2:3;
+  kp.phase='diving'; kp.t=0;
 
-  // Zorluk dengesi: hedeflenen sut basina gol olasiligi ~0.2466 (≈ %24.7)
-  // (5 sutta >=3 gol kazanma olasiligi ≈ %10)
-  // Daha kolay: taban gol olasiligi arttirildi
-  const pGoalBase = 0.44;
-  const cornerScore = clamp(Math.abs(dx)/Math.max(0.001, halfW), 0, 1); // 0 merkez, 1 kose
-  const heightScore = clamp(yN, 0, 1); // 0 alt, 1 ust
-  // Kullanicinin kose/ust tercihine kucuk odul, toplam ortalama pGoalBase etrafinda kalir
-  const pGoal = clamp(
-    pGoalBase + 0.07*(cornerScore-0.5) + 0.05*(heightScore-0.5),
-    0.18,
-    0.62
-  );
-  const saved = Math.random() > pGoal;
+  // Oyuncu
+  pl.phase='running'; pl.t=0;
 
-  // Eski timer'lari temizle (spam tap/click)
-  if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
-  if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
+  // Top
+  bl.phase='flying'; bl.sx=bl.x; bl.sy2=bl.y;
+  bl.tx=tx; bl.ty=ty; bl.t=0;
+  bl.arc=H*0.22;
+  bl.rotV=(col<1?-9:9)*Math.PI;
 
-  // 1) hedef secildi → ~1s sonra kick baslat
-  pendingShotTimer=setTimeout(()=>{
-    playAnim(arda,'kick');
+  // Gol hesapla
+  const colMap={0:'left',1:'center',2:'right'};
+  let saved=false;
+  if(side===colMap[col]){
+    if(row===0&&col!==1) saved=Math.random()<.20;
+    else if(row===0)     saved=Math.random()<.30;
+    else                 saved=Math.random()<.60;
+  } else saved=Math.random()<.04;
 
-    // 2) kick temas aninda topu firlat + kaleciyi reaksiyona sok
-    pendingKickTimer=setTimeout(()=>{
-      // keeper her zaman ortadan baslar (teleport yok)
-      if(keeper){
-        keeper.root.position.x=0;
-        keeper.root.position.y=0;
-        kAnim={phase:'react',t:0,sx:0,tx:diveX,side,yN};
-      }
-
-      const p0=ballMesh.position.clone();
-      const p2=target.clone();
-      const p1=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
-      p1.y+=2.0+Math.random()*0.4;
-      ballAnim={on:true,t:0,dur:0.55,p0,p1,p2};
-      if(DEBUG_SHOT){
-        console.log('[shot] target',shotTarget,'ballStart',p0,'dir',new THREE.Vector3().subVectors(p2,p0).normalize());
-      }
-      setTimeout(()=>land(saved,target),560);
-    }, Math.round(KICK_CONTACT_DELAY*1000));
-  }, Math.round(PRE_SHOT_DELAY*1000));
+  setTimeout(()=>onLand(saved,tx,ty),540);
 }
 
-function land(saved,wt){
+function onLand(saved,tx,ty){
   shots++;
   const dot=document.getElementById('dot-'+(shots-1));
-  const wv=wt.clone().project(cam);
-  const px=(wv.x*0.5+0.5)*W, py=(-wv.y*0.5+0.5)*H;
   if(!saved){
     goals++;document.getElementById('sGoal').textContent=goals;
     if(dot)dot.classList.add('goal');
-    spawnP(px,py);spawnC(px,py-H*0.06);
-    showRes(true);
-  }else{
-    // SAVE: topu world-space'te dondurmak yerine kaleciye bagla (caught) ya da sektir (deflect)
-    const caught = Math.random() < 0.65; // basit ayrim: caught vs deflect
-    if(caught && keeper){
-      attachBallToKeeper();
-    }else if(ballMesh){
-      // Deflection/parry: kisa bir sekme animasyonu (kalede asili kalmasin)
-      detachBallToScene();
-      const p0=ballMesh.position.clone();
-      const dir=new THREE.Vector3().subVectors(p0, new THREE.Vector3(0,1.0,GZ+0.55)).normalize();
-      const p2=p0.clone().add(new THREE.Vector3(dir.x,0.1,1.0).multiplyScalar(2.0));
-      p2.y=Math.max(0.18, p0.y-0.25);
-      p2.z=Math.min(p2.z, GZ+1.4);
-      const p1=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
-      p1.y+=0.35;
-      ballAnim={on:true,t:0,dur:0.28,p0,p1,p2};
-    }
+    netShake=16; netShakeDir=tx<W/2?-1:1;
+    spawnParts(tx,ty); spawnConfetti(tx,ty-H*.05);
+    showResult(true);
+  } else {
     misses++;document.getElementById('sMiss').textContent=misses;
     if(dot)dot.classList.add('miss');
-    showRes(false);
+    showResult(false);
   }
   document.getElementById('sRemain').textContent=TOTAL-shots;
 }
 
-function showRes(ok){
+function showResult(isGoal){
   const ov=document.getElementById('result');
-  document.getElementById('rEmoji').textContent=ok?'⚽':'🧤';
+  document.getElementById('rEmoji').textContent=isGoal?'⚽':'🧤';
   const rt=document.getElementById('rTxt');
-  rt.textContent=ok?'GOL!':'TUTTU!';
-  rt.className='rtxt '+(ok?'gt':'mt');
-  document.getElementById('rSub').textContent=(ok?GMSG:MMSG)[Math.floor(Math.random()*(ok?GMSG:MMSG).length)];
+  rt.textContent=isGoal?'GOL!':'TUTUDU!';
+  rt.className='rtxt '+(isGoal?'gt':'mt');
+  const msgs=isGoal?GMSG:MMSG;
+  document.getElementById('rSub').textContent=msgs[Math.floor(Math.random()*msgs.length)];
   ov.classList.add('show');
   setTimeout(()=>{
     ov.classList.remove('show');
-    if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
-    if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
-    if(ballMesh){
-      detachBallToScene();
-      ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);
-      ballAnim.on=false;
-    }
-    playAnim(arda,'idle');
-    if(keeper){
-      kAnim={phase:'return',t:0,sx:keeper.root.position.x,tx:0};
-      playAnim(keeper,'idle');
-    }
+    kp.startX=kp.x; kp.phase='back'; kp.t=0;
+    initBall(); initPlayer();
     if(shots>=TOTAL) setTimeout(showFinal,450);
     else{canShoot=true;document.getElementById('banner').style.display='';}
   },1600);
 }
 
 function showFinal(){
-  // HUD tek kaynak: global goals ile tutarsizlik olmasin
-  const goalsHud = parseInt(document.getElementById('sGoal')?.textContent || '0', 10) || goals;
-  const pct=goalsHud/TOTAL;
-  const t=document.getElementById('fTrophy');
-  const ti=document.getElementById('fTitle');
-  const m=document.getElementById('fMsg');
-  const fs=document.getElementById('fScore');
-  if(fs) fs.textContent=goalsHud+'/'+TOTAL+' GOL';
-  const won = goalsHud >= 3;
-  if(won){
-    if(t) t.textContent = '';
-    if(ti){ ti.textContent = 'KAZANDIN!'; ti.style.color = '#00E676'; }
-    if(m) m.textContent = pct===1 ? 'Mukemmel performans!' : 'Tebrikler! Kazandin.';
-  }else{
-    if(t) t.textContent = '';
-    if(ti){ ti.textContent = 'KAYBETTİN!'; ti.style.color = '#FF5252'; }
-    if(m) m.textContent = 'Bu sefer kaleci kazandi!';
-  }
+  const pct=goals/TOTAL;
+  const won=goals>=3;
+  const t=document.getElementById('fTrophy'),ti=document.getElementById('fTitle'),m=document.getElementById('fMsg');
+  document.getElementById('fScore').textContent=goals+'/'+TOTAL+' GOL';
+  if(pct===1){t.textContent='🏆';ti.textContent='MUKEMMEL!';ti.style.color='#FFD700';m.textContent='Tum penaltilari gol yaptin!';}
+  else if(pct>=.8){t.textContent='🥇';ti.textContent='HARIKA!';ti.style.color='#FFD700';m.textContent='Cok iyi! Bir dahaki sefere tumumunu at!';}
+  else if(pct>=.6){t.textContent='⭐';ti.textContent='IYI!';ti.style.color='#4FC3F7';m.textContent='Guzel oyun! Pratik yaptikca daha iyi olacaksin.';}
+  else if(pct>=.4){t.textContent='💪';ti.textContent='DEVAM ET!';ti.style.color='#FF9800';m.textContent='Kaleci bugun sansliyd. Rovans ver!';}
+  else{t.textContent='😅';ti.textContent='OLMADI!';ti.style.color='#FF5252';m.textContent='Bu sefer kaleci kazandi!';}
   document.getElementById('final').classList.add('show');
   gameActive=false;
-  spawnC(W/2,H*0.35);
+  spawnConfetti(W/2,H*.35);
+  setTimeout(()=>spawnConfetti(W*.25,H*.4),300);
+  setTimeout(()=>spawnConfetti(W*.75,H*.4),550);
 
-  const score = goalsHud + '/' + TOTAL;
-  const tgUser = tg?.initDataUnsafe?.user;
-  const tgId   = String(tgUser?.id || '');
-  const tgName = tgUser?.username || tgUser?.first_name || '';
+  // Telegram kullanici bilgileri
+  const tgUser=tg?.initDataUnsafe?.user;
+  const tgName=tgUser?.username||tgUser?.first_name||'';
+  const tgId=String(tgUser?.id||'');
 
-  const payload = JSON.stringify({
-    game: 'penalty',
-    pusulabet_username: (pusulabetUsername || '').trim(),
-    telegram_id: tgId,
-    telegram_kullanici: tgName,
-    score,
-    goals: goalsHud,
-    won,
-    kazandi: won ? 'EVET' : 'HAYIR',
-    total: TOTAL
-  });
+  // Bot'a sendData
+  if(tg){try{tg.sendData(JSON.stringify({game:'penalti',goals,misses,total:TOTAL,won,telegram_kullanici:tgName,telegram_id:tgId}));}catch(e){}}
 
-  // 1) Önce sendData ile bot'a gönder (Mini App bot üzerinden açılmışsa çalışır)
-  let sentViaTelegram = false;
-  if(tg && tg.sendData){
-    try{
-      tg.sendData(payload);
-      sentViaTelegram = true;
-      console.log('[sendData] gönderildi');
-    }catch(e){
-      console.warn('[sendData] hata:', e);
-    }
-  }
-
-  // 2) Her durumda HTTP fallback ile de gönder (sendData çalışmasa bile kayıt düşsün)
-  const BOT_API = 'http://localhost:8484/api/result';
-  try{
-    fetch(BOT_API, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: payload
-    })
-    .then(r=>r.json())
-    .then(d=>console.log('[api/result]', d))
-    .catch(e=>console.warn('[api/result] hata:', e));
-  }catch(e){
-    console.warn('[api/result] fetch hata:', e);
+  // Kazananları direkt Google Sheets'e gönder
+  if(won){
+    fetch('https://script.google.com/macros/s/AKfycbw8jk8phVwVJqUNPAtkLlOM7eQfoN-q7bfLk8tXJhktZSTeV0_nooIv53vakzbmnfuq/exec',{
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        game:'penalty',
+        tarih:new Date().toLocaleString('tr-TR'),
+        telegram_kullanici:tgName,
+        telegram_id:tgId,
+        pusulabet_username:'',
+        score:goals+'/'+TOTAL,
+        goals,
+        won:true,
+        kazandi:'EVET'
+      })
+    }).catch(e=>console.warn('[sheets]',e));
   }
 }
 
@@ -830,398 +502,96 @@ function resetGame(){
   document.getElementById('sRemain').textContent=TOTAL;
   document.getElementById('final').classList.remove('show');
   document.getElementById('banner').style.display='';
-  parts=[];confs=[];buildDots();
-  if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
-  if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
-  if(ballMesh){
-    detachBallToScene();
-    ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);
-    ballAnim.on=false;
-  }
-  playAnim(arda,'idle');
-  if(keeper){
-    keeper.root.position.set(0,0,GZ+0.55);
-    kAnim={phase:'idle',t:0,sx:0,tx:0};
-    playAnim(keeper,'idle');
-  }
+  particles=[];confetti=[];
+  buildDots();initBall();initPlayer();initKeeper();
 }
-window.resetGame=resetGame;
 
-window.openBet=function(){
-  const url='https://t2m.io/guncelpusulabet';
-  try{
-    if(tg && tg.openLink) tg.openLink(url);
-    else window.open(url,'_blank','noopener');
-  }catch(e){
-    window.open(url,'_blank','noopener');
-  }
-};
+function shareResult(){
+  const txt='Pusulabet Penalti: '+goals+'/'+TOTAL+' gol! @pusulasocial';
+  if(tg&&tg.openTelegramLink)tg.openTelegramLink('https://t.me/share/url?url=https://t.me/pusulabetgame_bot/penalti&text='+encodeURIComponent(txt));
+  else if(navigator.share)navigator.share({text:txt});
+}
 
-window.openPusulaTelegram=function(){
-  const url='https://t.me/pusulasocial';
-  try{
-    if(tg && tg.openTelegramLink) tg.openTelegramLink(url);
-    else window.open(url,'_blank','noopener');
-  }catch(e){
-    window.open(url,'_blank','noopener');
-  }
-};
+function startGame(){
+  document.getElementById('start').style.display='none';
+  gameActive=true;canShoot=true;
+}
 
-function startGame(){document.getElementById('start').style.display='none';gameActive=true;canShoot=true;}
-window.startGame=startGame;
-document.getElementById('btnStart')?.addEventListener('click',e=>{
-  e.preventDefault();
-  if(!ready) return;
-  const v = readPbUser();
-  if(!v){
-    setPbError('Lütfen Pusulabet kullanıcı adını gir.');
-    pbUserEl?.focus?.();
-    return;
-  }
-  setPbError('');
-  persistPbUser(v);
-  startGame();
+function getCell(px,py){
+  const g=gr();
+  if(px<g.x||px>g.x+g.w||py<g.y||py>g.y+g.h)return{r:-1,c:-1};
+  return{r:Math.floor((py-g.y)/(g.h/3)),c:Math.floor((px-g.x)/(g.w/3))};
+}
+
+canvas.addEventListener('mousemove',e=>{
+  if(!gameActive||!canShoot)return;
+  hoverCell=getCell(e.clientX,e.clientY);
 });
-
-// ── PARTIKUL ──
-function spawnP(cx,cy){for(let i=0;i<32;i++){const a=Math.random()*Math.PI*2,s=1.5+Math.random()*5;parts.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,decay:0.02+Math.random()*0.02,r:2+Math.random()*5,col:Math.random()<0.5?'#00E676':'#FFD700'});}}
-function spawnC(cx,cy){for(let i=0;i<70;i++){const a=(Math.random()-0.5)*Math.PI*1.5-Math.PI/2,s=4+Math.random()*11;confs.push({x:cx,y:cy,vx:Math.cos(a)*s+(Math.random()-0.5)*4,vy:Math.sin(a)*s,w:4+Math.random()*8,h:3+Math.random()*5,rot:Math.random()*Math.PI*2,rotV:(Math.random()-0.5)*0.35,life:1,decay:0.008+Math.random()*0.008,col:CC[Math.floor(Math.random()*CC.length)]});}}
-function drawFx(){
-  fctx.clearRect(0,0,W,H);
-  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.18;p.life-=p.decay;if(p.life<=0){parts.splice(i,1);continue;}fctx.globalAlpha=p.life;fctx.fillStyle=p.col;fctx.beginPath();fctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);fctx.fill();}
-  for(let i=confs.length-1;i>=0;i--){const c=confs[i];c.x+=c.vx;c.y+=c.vy;c.vy+=0.28;c.vx*=0.99;c.rot+=c.rotV;c.life-=c.decay;if(c.life<=0){confs.splice(i,1);continue;}fctx.save();fctx.globalAlpha=c.life;fctx.translate(c.x,c.y);fctx.rotate(c.rot);fctx.fillStyle=c.col;fctx.fillRect(-c.w/2,-c.h/2,c.w,c.h);fctx.restore();}
-  fctx.globalAlpha=1;
-}
-
-// ── INPUT ──
-function buildDots(){const cont=document.getElementById('dots');cont.innerHTML='';for(let i=0;i<TOTAL;i++){const d=document.createElement('div');d.className='dot';d.id='dot-'+i;cont.appendChild(d);}}
-canvas.addEventListener('mousemove',e=>{updateAimVisual(e.clientX,e.clientY);});
 canvas.addEventListener('click',e=>{
-  if(!gameActive||!canShoot) return;
-  const a=getAimFromPointer(e.clientX,e.clientY);
-  if(a){ shootAt(a.world,a.local); }
+  if(!gameActive||!canShoot)return;
+  const cell=getCell(e.clientX,e.clientY);
+  if(cell.r>=0)shoot(cell.r,cell.c);
 });
 canvas.addEventListener('touchstart',e=>{
-  if(!gameActive||!canShoot) return;
+  if(!gameActive||!canShoot)return;
   const t=e.touches[0];
-  const a=getAimFromPointer(t.clientX,t.clientY);
-  if(a){ e.preventDefault(); shootAt(a.world,a.local); }
+  const cell=getCell(t.clientX,t.clientY);
+  if(cell.r>=0){e.preventDefault();shoot(cell.r,cell.c);}
 },{passive:false});
-canvas.addEventListener('touchmove',e=>{ if(gameActive&&canShoot){ const t=e.touches[0]; updateAimVisual(t.clientX,t.clientY); }},{passive:true});
+canvas.addEventListener('touchmove',e=>{
+  if(!gameActive||!canShoot)return;
+  hoverCell=getCell(e.touches[0].clientX,e.touches[0].clientY);
+},{passive:true});
 
-// ── ANA DONGU ──
+function buildDots(){
+  const cont=document.getElementById('dots');cont.innerHTML='';
+  for(let i=0;i<TOTAL;i++){const d=document.createElement('div');d.className='dot';d.id='dot-'+i;cont.appendChild(d);}
+}
+
 let lastT=0;
 function loop(ts){
-  const dt=Math.min((ts-lastT)/1000,0.05);lastT=ts;
+  const dt=Math.min((ts-lastT)/1000,.05);lastT=ts;
+  ctx.clearRect(0,0,W,H);
 
-  rdr.clear();
-  rdr.render(bgScene,bgCam);
-  rdr.clearDepth();
-
-  tickChar(arda,dt);
-  tickChar(keeper,dt);
-
-  if(ballAnim.on&&ballMesh){
-    ballAnim.t+=dt;
-    const u=Math.min(ballAnim.t/ballAnim.dur,1),e=easeIO(u);
-    const{p0,p1,p2}=ballAnim;
-    ballMesh.position.x=(1-e)*(1-e)*p0.x+2*(1-e)*e*p1.x+e*e*p2.x;
-    ballMesh.position.y=(1-e)*(1-e)*p0.y+2*(1-e)*e*p1.y+e*e*p2.y;
-    ballMesh.position.z=(1-e)*(1-e)*p0.z+2*(1-e)*e*p1.z+e*e*p2.z;
-    ballMesh.rotation.x+=14*dt;ballMesh.rotation.z+=10*dt;
-    if(u>=1)ballAnim.on=false;
+  // BG — cover
+  if(bgImg.complete&&bgImg.naturalWidth){
+    const iw=bgImg.naturalWidth,ih=bgImg.naturalHeight,s=Math.max(W/iw,H/ih);
+    ctx.drawImage(bgImg,(W-iw*s)/2,(H-ih*s)/2,iw*s,ih*s);
+  } else {
+    ctx.fillStyle='#0a1a0a';ctx.fillRect(0,0,W,H);
   }
 
-  if(keeper){
-    if(kAnim.phase==='react'){
-      kAnim.t+=dt;
-      keeper.root.position.x=0;
-      keeper.root.position.y=0;
-      if(kAnim.t>=K_REACT_DELAY){
-        kAnim.phase='dive';
-        kAnim.t=0;
-        playAnim(keeper, pickKAnim(kAnim.side,kAnim.yN));
-      }
-    }else if(kAnim.phase==='dive'){
-      kAnim.t+=dt;
-      const u=Math.min(kAnim.t/0.42,1),e=easeOut(u);
-      keeper.root.position.x=kAnim.sx+(kAnim.tx-kAnim.sx)*e;
-      // Dalis yuksekligini sinirla (bar ustune cikmasin / ziplama abartmasin)
-      keeper.root.position.y=Math.sin(u*Math.PI)*0.10;
-      if(u>=1)kAnim.phase='hold';
-    }else if(kAnim.phase==='hold'){
-      // Pozisyonu sabitle (idle bob'a dusup ziplama/floating yapmasin)
-      keeper.root.position.y=0;
-    }else if(kAnim.phase==='return'){
-      kAnim.t+=dt;
-      const u=Math.min(kAnim.t/0.6,1),e=easeIO(u);
-      keeper.root.position.x=kAnim.sx*(1-e);
-      keeper.root.position.y=0;
-      if(u>=1){kAnim.phase='idle';keeper.root.position.set(0,0,GZ+0.55);}
-    }else{
-      keeper.root.position.x=Math.sin(ts*0.0014)*0.04;
-      keeper.root.position.y=0;
-    }
-  }
+  // Hafif karartma alt
+  const dk=ctx.createLinearGradient(0,H*0.5,0,H);
+  dk.addColorStop(0,'rgba(0,0,0,0)');dk.addColorStop(1,'rgba(0,0,0,0.35)');
+  ctx.fillStyle=dk;ctx.fillRect(0,0,W,H);
 
-  rdr.render(scene,cam);
-  drawFx();
+  // Ağ sallantısı
+  drawNetShake();
+
+  // Hedef hücreleri
+  drawCells();
+
+  // Kaleci
+  updateKeeper(dt);
+  drawKeeper();
+
+  // Parçacıklar
+  drawParticles();
+
+  // Top
+  updateBall(dt);
+  drawBall();
+
+  // Oyuncu (en önde)
+  updatePlayer(dt);
+  drawPlayer();
+
   requestAnimationFrame(loop);
 }
 
-// ── BOOT ──
-const texLoader=new THREE.TextureLoader(manager);
-texLoader.setCrossOrigin('anonymous');
-
-async function boot(){
-  console.log('[boot] BASE=',BASE);
-
-  // BG (full-screen cover scene)
-  try{
-    bgTex=await new Promise((res,rej)=>texLoader.load(ASSET('bg.png'),res,undefined,rej));
-    bgTex.colorSpace=THREE.SRGBColorSpace;
-    bgTex.wrapS=THREE.ClampToEdgeWrapping;
-    bgTex.wrapT=THREE.ClampToEdgeWrapping;
-    bgTex.repeat.set(1,1);
-    bgTex.offset.set(0,0);
-    bgPlane.material.map=bgTex;
-    bgPlane.material.needsUpdate=true;
-    updateBgCover();
-  }catch(e){
-    console.error('[BG] Yuklenemedi',e);
-  }
-
-  // Top
-  try{
-    // Yeni yapida top dokulari assets/ball/ altinda
-    const bt=await new Promise((res,rej)=>texLoader.load(ASSET('ball/ball_texture.png'),res,undefined,rej));
-    bt.colorSpace=THREE.SRGBColorSpace;
-    ballMesh=new THREE.Mesh(
-      new THREE.SphereGeometry(BALL_R,32,32),
-      new THREE.MeshStandardMaterial({map:bt,roughness:0.35,metalness:0.05})
-    );
-    ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);
-    scene.add(ballMesh);
-  }catch(e){console.error('[Ball.png] Yuklenemedi',e);}
-
-  // Opsiyonel: ball.fbx varsa png topun yerine onu kullan
-  try{
-    const bfbx=await loadFBX(ASSET('ball/ball_texture.fbx'));
-    if(bfbx){
-      bfbx.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; }});
-      bfbx.updateMatrixWorld(true);
-      const box=new THREE.Box3().setFromObject(bfbx);
-      const sz=new THREE.Vector3(); box.getSize(sz);
-      const maxD=Math.max(sz.x,sz.y,sz.z);
-      if(maxD>0.0001){
-        const s=(BALL_R*2)/maxD;
-        bfbx.scale.setScalar(s);
-      }
-      bfbx.position.set(0,BALL_R,PENALTY_Z+0.08);
-      scene.add(bfbx);
-      ballObj=bfbx;
-      // Animasyon kodu ballMesh uzerinden calisiyor; FBX geldiyse onu aktif top yap
-      if(ballMesh) scene.remove(ballMesh);
-      ballMesh=bfbx;
-      console.log('[Ball.fbx] yüklendi');
-    }
-  }catch(e){
-    console.warn('[Ball.fbx] Yok/hatali (opsiyonel)',e?.message||e);
-  }
-
-  // ── ARDA FBX ──
-  const [ardaIdle, ardaKick] = await Promise.all([
-    loadFBX(ASSET('arda/idle.fbx')),
-    loadFBX(ASSET('arda/kick.fbx')),
-  ]);
-
-  if(ardaIdle||ardaKick){
-    const root=new THREE.Group();
-    root.rotation.y=Math.PI; // kameraya arkasiyla
-    root.renderOrder=10;
-    scene.add(root);
-    arda={root, models:{}, mixers:{}, actions:{}, current:''};
-
-    // Idle modeli
-    if(ardaIdle){
-      normalizeChar(ardaIdle, ARDA_TARGET_H);
-      ardaIdle.visible=true;
-      root.add(ardaIdle);
-      const mx=new THREE.AnimationMixer(ardaIdle);
-      const clip=ardaIdle.animations[0];
-      if(clip){
-        const act=mx.clipAction(clip);
-        act.setLoop(THREE.LoopRepeat,Infinity);
-        act.play();
-        arda.models.idle=ardaIdle;
-        arda.mixers.idle=mx;
-        arda.actions.idle=act;
-      }
-    }
-
-    // Kick modeli
-    if(ardaKick){
-      normalizeChar(ardaKick, ARDA_TARGET_H);
-      ardaKick.visible=false;
-      root.add(ardaKick);
-      const mx=new THREE.AnimationMixer(ardaKick);
-      const clip=ardaKick.animations[0];
-      if(clip){
-        const act=mx.clipAction(clip);
-        act.setLoop(THREE.LoopOnce,1);
-        act.clampWhenFinished=true;
-        arda.models.kick=ardaKick;
-        arda.mixers.kick=mx;
-        arda.actions.kick=act;
-      }
-    }
-
-    arda.current='idle';
-
-    // Arda pozisyonu — penalti noktasi onunde
-    // Arda topun arkasinda (kamera tarafinda), penalti setup hissi: topun 1.6m gerisinde
-    root.position.set(0.15,0,PENALTY_Z+1.60);
-    console.log('[Arda] hazir, actions:',Object.keys(arda.actions));
-  }
-
-  // ── KALECI FBX ──
-  const keeperFiles=[
-    ['idle',          ASSET('keeper/idle.fbx'),           THREE.LoopRepeat],
-    ['dive_left',     ASSET('keeper/dive_left.fbx'),      THREE.LoopOnce],
-    ['dive_right',    ASSET('keeper/dive_right.fbx'),     THREE.LoopOnce],
-    ['save_low_left', ASSET('keeper/save_low_left.fbx'),  THREE.LoopOnce],
-    ['save_low_right',ASSET('keeper/save_low_right.fbx'), THREE.LoopOnce],
-    ['sidestep_left', ASSET('keeper/sidestep_left.fbx'),  THREE.LoopOnce],
-    ['sidestep_right',ASSET('keeper/sidestep_right.fbx'), THREE.LoopOnce],
-  ];
-
-  const kRoot=new THREE.Group();
-  kRoot.position.set(0,0,GZ+0.55);
-  kRoot.rotation.y=0;
-  kRoot.renderOrder=8;
-  scene.add(kRoot);
-  keeper={root:kRoot, models:{}, mixers:{}, actions:{}, current:''};
-
-  // Paralel yukle
-  const kLoaded=await Promise.all(keeperFiles.map(([,url])=>loadFBX(url)));
-
-  kLoaded.forEach((fbx,i)=>{
-    if(!fbx)return;
-    const[name,,loop]=keeperFiles[i];
-    normalizeChar(fbx, KEEPER_TARGET_H);
-    fbx.visible=(name==='idle'); // sadece idle baslangicta gorunur
-    kRoot.add(fbx);
-    const mx=new THREE.AnimationMixer(fbx);
-    const clip=fbx.animations[0];
-    if(clip){
-      const act=mx.clipAction(clip);
-      act.setLoop(loop,loop===THREE.LoopOnce?1:Infinity);
-      if(loop===THREE.LoopOnce) act.clampWhenFinished=true;
-      if(name==='idle') act.play();
-      keeper.models[name]=fbx;
-      keeper.mixers[name]=mx;
-      keeper.actions[name]=act;
-    }
-  });
-
-  keeper.current='idle';
-  console.log('[Keeper] hazir, actions:',Object.keys(keeper.actions));
-
-  // Kaleciyi zemine oturt (pivot/foot problemi varsa bbox.min.y ile düzelt)
-  try{
-    const kb=new THREE.Box3().setFromObject(kRoot);
-    kRoot.position.y-=kb.min.y;
-    // Bar altinda kalsin: fazla uzunsa scale down
-    const kh=kb.max.y-kb.min.y;
-    if(kh>GH*0.92){
-      const s=(GH*0.90)/kh;
-      kRoot.scale.multiplyScalar(s);
-      kRoot.position.y=0;
-    }
-  }catch(e){
-    console.warn('[Keeper] ground/scale ayari yapilamadi',e?.message||e);
-  }
-
-  // GOAL FBX (opsiyonel)
-  try{
-    // Yeni yapida kale modeli assets/goal/ altinda
-    const gfbx=await loadFBX(ASSET('goal/goal_texture.fbx'));
-    if(gfbx){
-      gfbx.traverse(o=>{ if(o.isMesh){ o.castShadow=false; o.receiveShadow=false; }});
-      gfbx.updateMatrixWorld(true);
-      const box=new THREE.Box3().setFromObject(gfbx);
-      const sz=new THREE.Vector3(); box.getSize(sz);
-      if(sz.x>0.0001 && sz.y>0.0001){
-        const sx=GW/sz.x;
-        const sy=GH/sz.y;
-        const s=Math.min(sx,sy);
-        gfbx.scale.setScalar(s);
-      }
-      // Goal modeli: zemine oturt ve goal line'a hizala
-      gfbx.position.set(0,0,GOAL_MODEL_Z);
-      gfbx.updateMatrixWorld(true);
-      const bGround=new THREE.Box3().setFromObject(gfbx);
-      // Zemine oturt (minY = 0)
-      gfbx.position.y-=bGround.min.y;
-      gfbx.updateMatrixWorld(true);
-      gfbx.renderOrder=2;
-      scene.add(gfbx);
-      goalObj=gfbx;
-      console.log('[Goal.fbx] yüklendi');
-
-      // Goal bbox'una gore hedefleme rect'i (raycast clamp) guncelle.
-      gfbx.updateMatrixWorld(true);
-      const b2=new THREE.Box3().setFromObject(gfbx);
-      // World rect: raycast ve sut hedefleri icin (kale agzinin 2D projeksiyonu)
-      goalRect={
-        xMin:b2.min.x,
-        xMax:b2.max.x,
-        yMin:Math.max(0,b2.min.y),
-        yMax:Math.max(0.01,b2.max.y),
-        z:TARGET_Z_WORLD,
-      };
-
-      // Goal local rect: hedef plane (goalHitMesh) goal local uzayinda durur
-      const inv=new THREE.Matrix4().copy(gfbx.matrixWorld).invert();
-      const wMin=b2.min.clone().applyMatrix4(inv);
-      const wMax=b2.max.clone().applyMatrix4(inv);
-      const localZ=new THREE.Vector3(0,0,TARGET_Z_WORLD).applyMatrix4(inv).z;
-      // Not: Bazi modellerde bbox tabaninda alt kisim hedeflemeyi daraltabiliyor.
-      // Ancak modeli "0 merkezli" varsayamayiz. O yuzden local rect'i, modelin bbox merkezine
-      // oturtup GW/GH (world metre) hedef olculerini world scale'i hesaba katarak local'e ceviririz.
-      const ws=new THREE.Vector3();
-      gfbx.getWorldScale(ws);
-      const localW = GW / Math.max(1e-6, ws.x);
-      const localH = GH / Math.max(1e-6, ws.y);
-      const xCenter = (wMin.x + wMax.x) * 0.5;
-      const yBottom = Math.min(wMin.y, wMax.y); // model zaten zemine oturtuldu (minY ~ 0)
-      goalLocalRect={
-        xMin: xCenter - localW*0.5,
-        xMax: xCenter + localW*0.5,
-        yMin: yBottom,
-        yMax: yBottom + localH,
-        z: localZ,
-      };
-
-      ensureGoalHitMesh();
-    }
-  }catch(e){
-    console.warn('[Goal.fbx] Yok/hatali (opsiyonel)',e?.message||e);
-  }
-
-  ready=true;
-  // Yukleme bar'i LoadingManager ile kapanir; burasi sadece fallback
-  if(!manager || !manager.isLoading){
-    const _ld=document.getElementById('loading');
-    if(_ld) _ld.classList.add('hide');
-  }
-  buildDots();
-  console.log('[boot] Hazir!');
-}
-
-buildDots();
+buildDots();initBall();initPlayer();initKeeper();
 requestAnimationFrame(loop);
-boot();
 </script>
 </body>
 </html>
