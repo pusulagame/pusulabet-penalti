@@ -116,8 +116,8 @@ const ASSET = (p)=>new URL(p, BASE).href;
 const TOTAL=5, BALL_R=0.11;
 // Gercek olculer: kale 7.32m x 2.44m, penalti 11m
 const GW=7.32, GH=2.44, GZ=-11;
-// BG perspektifinde kale yuksekligi biraz yukarida gorundugu icin kucuk offset
-const GOAL_YOF=1.08;
+// Kale secim grid'i biraz daha asagi: UI ile hizali, hedef alan fazla yukarida kalmasin
+const GOAL_YOF=0.78;
 // FBX Mixamo modelleri genellikle 100x buyuk gelir (cm cinsinden)
 // normalizeChar ile hedef boya scale edilir
 // Arda oncekine gore ~%30 kucuk
@@ -361,10 +361,14 @@ function shoot(row,col){
   const cm={0:'left',1:'center',2:'right'};
   let saved=false;
   if(side===cm[col]){
-    if(row===0&&col!==1) saved=Math.random()<0.20;
-    else if(row===0)     saved=Math.random()<0.30;
-    else                 saved=Math.random()<0.58;
-  } else saved=Math.random()<0.04;
+    // Kaleci dogru tarafi sezdi: kurtaris ihtimali yuksek
+    if(row===0&&col!==1) saved=Math.random()<0.45; // ust kose
+    else if(row===0)     saved=Math.random()<0.55; // ust orta
+    else                 saved=Math.random()<0.75; // alt/orta
+  } else {
+    // Yanlis tarafa gitti ama bazen reaksiyon/temas olur
+    saved=Math.random()<0.15;
+  }
 
   // Kaleci
   if(keeper){
