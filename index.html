@@ -1154,15 +1154,21 @@ async function boot(){
       const wMin=b2.min.clone().applyMatrix4(inv);
       const wMax=b2.max.clone().applyMatrix4(inv);
       const localZ=new THREE.Vector3(0,0,TARGET_Z_WORLD).applyMatrix4(inv).z;
-      // Not: Bazi modellerde bbox tabaninda alt kisim "bos" kaldigi icin
-      // hedefleme duzlemi alt bandi kapsamayabiliyor. Kale olculeri zaten GW/GH'e scale ediliyor,
-      // bu yuzden local rect'i bilinen olculere sabitle.
+      // Not: Bazi modellerde bbox tabaninda alt kisim hedeflemeyi daraltabiliyor.
+      // Ancak modeli "0 merkezli" varsayamayiz. O yuzden local rect'i, modelin bbox merkezine
+      // oturtup GW/GH (world metre) hedef olculerini world scale'i hesaba katarak local'e ceviririz.
+      const ws=new THREE.Vector3();
+      gfbx.getWorldScale(ws);
+      const localW = GW / Math.max(1e-6, ws.x);
+      const localH = GH / Math.max(1e-6, ws.y);
+      const xCenter = (wMin.x + wMax.x) * 0.5;
+      const yBottom = Math.min(wMin.y, wMax.y); // model zaten zemine oturtuldu (minY ~ 0)
       goalLocalRect={
-        xMin:-GW/2,
-        xMax: GW/2,
-        yMin: 0,
-        yMax: GH,
-        z:localZ,
+        xMin: xCenter - localW*0.5,
+        xMax: xCenter + localW*0.5,
+        yMin: yBottom,
+        yMax: yBottom + localH,
+        z: localZ,
       };
 
       ensureGoalHitMesh();
