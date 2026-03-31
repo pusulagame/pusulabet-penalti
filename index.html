@@ -39,7 +39,15 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
 .rtxt{font-family:'Bebas Neue',cursive;font-size:clamp(40px,10vw,64px);letter-spacing:5px;position:relative;z-index:1;text-shadow:0 4px 24px rgba(0,0,0,.9);}
 .rtxt.gt{color:#00E676;}.rtxt.mt{color:#FF1744;}
 .rsub{font-size:18px;color:rgba(255,255,255,.82);position:relative;z-index:1;letter-spacing:1px;}
-#final{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;}
+#final{
+  position:absolute;
+  inset:0;
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-end;
+  padding:0 14px calc(16px + env(safe-area-inset-bottom, 0px));
+}
 #final.show{display:flex;}
 .fbg{
   position:absolute;
@@ -49,7 +57,40 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
     url('assets/final-bg.png') center/cover no-repeat;
   filter:saturate(1.10) contrast(1.06);
 }
-.fcard{position:relative;z-index:1;background:linear-gradient(145deg,rgba(255,107,0,.1),rgba(0,0,0,.7));border:1px solid rgba(255,215,0,.28);border-radius:24px;padding:32px 40px;text-align:center;max-width:320px;width:88%;}
+.fcard{
+  position:relative;
+  z-index:1;
+  width:min(640px, 96vw);
+  max-width:640px;
+  background:linear-gradient(145deg,rgba(0,0,0,.52),rgba(0,0,0,.74));
+  border:1px solid rgba(255,215,0,.22);
+  border-radius:22px;
+  padding:18px 18px 16px;
+  text-align:left;
+  backdrop-filter:blur(6px);
+  box-shadow:0 18px 50px rgba(0,0,0,.45);
+}
+.fTop{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:10px;}
+.fLeft{min-width:0;}
+.fRight{text-align:right;flex:0 0 auto;}
+.fTitleRow{display:flex;flex-direction:column;gap:4px;}
+.ftitle{margin:0;}
+.fmsg{margin:0;color:rgba(255,255,255,.75);line-height:1.45;}
+.fActions{display:flex;gap:10px;margin-top:14px;}
+.fActions .btnP,.fActions .btnS{margin:0;width:50%;}
+.btnP{padding:14px 18px;}
+.btnS{padding:14px 18px;color:rgba(255,255,255,.78);}
+.btnS:hover{border-color:rgba(255,255,255,.25);}
+
+@media (max-width: 480px){
+  #final{padding:0 12px calc(12px + env(safe-area-inset-bottom, 0px));}
+  .fcard{border-radius:20px;padding:16px 14px 14px;}
+  .ftitle{font-size:42px;letter-spacing:2.5px;}
+  .fscore{font-size:28px;margin:0;}
+  .fmsg{font-size:14px;}
+  .fActions{gap:8px;}
+  .fActions .btnP,.fActions .btnS{width:50%;font-size:18px;letter-spacing:1.5px;padding:13px 12px;}
+}
 .ftrophy{font-size:66px;margin-bottom:6px;}
 .ftitle{font-family:'Bebas Neue',cursive;font-size:48px;letter-spacing:3px;margin-bottom:4px;}
 .fscore{font-family:'Bebas Neue',cursive;font-size:32px;color:#FFD700;margin-bottom:10px;}
@@ -97,12 +138,21 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
   <div id="final">
     <div class="fbg"></div>
     <div class="fcard">
-      <div class="ftrophy" id="fTrophy"></div>
-      <div class="ftitle" id="fTitle">TEBRIKLER!</div>
-      <div class="fscore" id="fScore">5/5 GOL</div>
-      <div class="fmsg" id="fMsg">Mukemmel!</div>
-      <button class="btnP" type="button" onclick="openBet()">BAHIS AL</button>
-      <button class="btnS" type="button" onclick="openPusulaTelegram()">Pusula Telegram</button>
+      <div class="fTop">
+        <div class="fLeft">
+          <div class="fTitleRow">
+            <div class="ftitle" id="fTitle">TEBRIKLER!</div>
+            <div class="fmsg" id="fMsg">Mukemmel!</div>
+          </div>
+        </div>
+        <div class="fRight">
+          <div class="fscore" id="fScore">5/5 GOL</div>
+        </div>
+      </div>
+      <div class="fActions">
+        <button class="btnP" type="button" onclick="openBet()">BAHIS AL</button>
+        <button class="btnS" type="button" onclick="openPusulaTelegram()">Pusula Telegram</button>
+      </div>
     </div>
   </div>
   <div id="start">
