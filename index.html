@@ -805,14 +805,21 @@ function showFinal(){
     }
   }
 
-  // 2) Kazananları direkt Google Sheets'e gönder
+  // 2) Kazananları Google Sheets'e gönder (GET ile — en güvenilir yöntem)
   if(won){
-    fetch('https://script.google.com/macros/s/AKfycbw8jk8phVwVJqUNPAtkLlOM7eQfoN-q7bfLk8tXJhktZSTeV0_nooIv53vakzbmnfuq/exec',{
-      method:'POST',
-      mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body:payload
-    }).catch(e=>console.warn('[sheets] hata:', e));
+    const p = JSON.parse(payload);
+    const qs = new URLSearchParams({
+      game: 'penalty',
+      tarih: p.tarih || new Date().toLocaleString('tr-TR'),
+      telegram_kullanici: p.telegram_kullanici || '',
+      telegram_id: p.telegram_id || '',
+      pusulabet_username: p.pusulabet_username || '',
+      score: p.score || '',
+      goals: String(p.goals || 0),
+      kazandi: 'EVET'
+    });
+    const url = 'https://script.google.com/macros/s/AKfycbw8jk8phVwVJqUNPAtkLlOM7eQfoN-q7bfLk8tXJhktZSTeV0_nooIv53vakzbmnfuq/exec?' + qs.toString();
+    fetch(url, {mode:'no-cors'}).catch(e=>console.warn('[sheets]',e));
   }
 }
 
