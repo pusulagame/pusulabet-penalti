@@ -224,23 +224,27 @@ ln.rotation.x=-Math.PI/2;ln.position.set(0,0.02,-5.5);scene.add(ln);
 
 // Kale agzi rect'i (world) — goal.fbx yuklenince bbox'tan guncellenir
 let goalRect={xMin:-GW/2,xMax:GW/2,yMin:GOAL_YOF,yMax:GOAL_YOF+GH,z:GZ};
+// Target plane'in world Z'i (goalun icinde, kaleci arkasi) — sabit tutuyoruz
+const TARGET_Z_WORLD = GZ + 0.02;
+// Goal local uzayinda hedef rect (hiG goalObj child olunca local yerlesim buradan gelir)
+let goalLocalRect={xMin:-GW/2,xMax:GW/2,yMin:0,yMax:GH,z:0};
 
 // Kale plane (raycast) — constant sonradan guncellenebilir
-const goalPlane=new THREE.Plane(new THREE.Vector3(0,0,1),-goalRect.z);
+const goalPlane=new THREE.Plane(new THREE.Vector3(0,0,1),-TARGET_Z_WORLD);
 const rc=new THREE.Raycaster();
 const ndc=new THREE.Vector2();
 const hit=new THREE.Vector3();
 
-// Highlight meshler (kale secici) — goalRect'a gore yeniden kurulur
+// Highlight meshler (kale secici) — goalObj child olacak; yoksa world'e eklenir
 const hiG=new THREE.Group();
 scene.add(hiG);
 
 function rebuildTargets(){
   while(hiG.children.length) hiG.remove(hiG.children[0]);
-  const w=goalRect.xMax-goalRect.xMin;
-  const h=goalRect.yMax-goalRect.yMin;
+  const w=goalLocalRect.xMax-goalLocalRect.xMin;
+  const h=goalLocalRect.yMax-goalLocalRect.yMin;
   const cw=w/3, ch=h/3;
-  const z=goalRect.z+0.03; // kale plane'ine cok yakin, ama icerde
+  const z=goalLocalRect.z; // goal local space
   for(let r=0;r<3;r++) for(let c=0;c<3;c++){
     const mat=new THREE.MeshBasicMaterial({
       color:0xffd700,
@@ -249,12 +253,12 @@ function rebuildTargets(){
       depthTest:true,
       depthWrite:false,
       polygonOffset:true,
-      polygonOffsetFactor:-1,
-      polygonOffsetUnits:-1,
+      // transparent sorting sorunlarinda goal'a gore biraz geri it
+      polygonOffsetFactor:1,
+      polygonOffsetUnits:1,
     });
     const m=new THREE.Mesh(new THREE.PlaneGeometry(cw-0.12,ch-0.12), mat);
-    m.renderOrder=1;
-    m.position.set(goalRect.xMin+cw*(c+0.5), goalRect.yMin+ch*(2-r)+ch/2, z);
+    m.position.set(goalLocalRect.xMin+cw*(c+0.5), goalLocalRect.yMin+ch*(2-r)+ch/2, z);
     m.userData={r,c};
     hiG.add(m);
   }
@@ -269,7 +273,7 @@ function worldCell(row,col){
   const w=goalRect.xMax-goalRect.xMin;
   const h=goalRect.yMax-goalRect.yMin;
   const cw=w/3,ch=h/3;
-  return new THREE.Vector3(goalRect.xMin+cw*(col+0.5), goalRect.yMin+ch*((2-row)+0.5), goalRect.z+0.02);
+  return new THREE.Vector3(goalRect.xMin+cw*(col+0.5), goalRect.yMin+ch*((2-row)+0.5), TARGET_Z_WORLD);
 }
 
 // ── FBX YUKLEME ──
@@ -743,18 +747,36 @@ async function boot(){
       goalObj=gfbx;
       console.log('[Goal.fbx] yüklendi');
 
-      // Kale secim alanini goal model bbox'una gore guncelle (overlay gibi degil, sahnenin parcasi gibi dursun)
+      // Kale secim alanini goal model bbox'una gore guncelle.
+      // Hedef meshlerini goal'a child yap (world'e bagimsiz overlay gibi davranmasin).
       gfbx.updateMatrixWorld(true);
       const b2=new THREE.Box3().setFromObject(gfbx);
+      // World rect: raycast ve sut hedefleri icin (kale agzinin 2D projeksiyonu)
       goalRect={
         xMin:b2.min.x,
         xMax:b2.max.x,
         yMin:Math.max(0,b2.min.y),
         yMax:Math.max(0.01,b2.max.y),
-        // Secim duzlemi: goal'un kamera tarafina en yakin yuzeyi
-        z:b2.max.z-0.02,
+        z:TARGET_Z_WORLD,
       };
-      goalPlane.constant=-goalRect.z;
+
+      // Target group'nu goal'a bagla
+      if(hiG.parent!==gfbx){ gfbx.add(hiG); }
+
+      // Goal local rect: hiG icindeki plane'ler goal local uzayinda durur
+      const inv=new THREE.Matrix4().copy(gfbx.matrixWorld).invert();
+      const wMin=b2.min.clone().applyMatrix4(inv);
+      const wMax=b2.max.clone().applyMatrix4(inv);
+      const localZ=new THREE.Vector3(0,0,TARGET_Z_WORLD).applyMatrix4(inv).z;
+      goalLocalRect={
+        xMin:Math.min(wMin.x,wMax.x),
+        xMax:Math.max(wMin.x,wMax.x),
+        yMin:Math.max(0,Math.min(wMin.y,wMax.y)),
+        yMax:Math.max(0.01,Math.max(wMin.y,wMax.y)),
+        // Hedef duzlemi: goal plane ile ayni world Z'e denk gelsin
+        z:localZ,
+      };
+
       rebuildTargets();
     }
   }catch(e){
