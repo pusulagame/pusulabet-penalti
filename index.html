@@ -556,7 +556,8 @@ async function boot(){
 
   // Top
   try{
-    const bt=await new Promise((res,rej)=>texLoader.load(ASSET('ball.png'),res,undefined,rej));
+    // Yeni yapida top dokulari assets/ball/ altinda
+    const bt=await new Promise((res,rej)=>texLoader.load(ASSET('ball/ball_texture.png'),res,undefined,rej));
     bt.colorSpace=THREE.SRGBColorSpace;
     ballMesh=new THREE.Mesh(
       new THREE.SphereGeometry(BALL_R,32,32),
@@ -568,7 +569,7 @@ async function boot(){
 
   // Opsiyonel: ball.fbx varsa png topun yerine onu kullan
   try{
-    const bfbx=await loadFBX(ASSET('ball.fbx'));
+    const bfbx=await loadFBX(ASSET('ball/ball_texture.fbx'));
     if(bfbx){
       bfbx.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; }});
       bfbx.updateMatrixWorld(true);
@@ -690,7 +691,8 @@ async function boot(){
 
   // GOAL FBX (opsiyonel)
   try{
-    const gfbx=await loadFBX(ASSET('goal.fbx'));
+    // Yeni yapida kale modeli assets/goal/ altinda
+    const gfbx=await loadFBX(ASSET('goal/goal_texture.fbx'));
     if(gfbx){
       gfbx.traverse(o=>{ if(o.isMesh){ o.castShadow=false; o.receiveShadow=false; }});
       gfbx.updateMatrixWorld(true);
