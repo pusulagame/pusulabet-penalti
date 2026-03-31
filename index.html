@@ -245,8 +245,11 @@ const keeperActions = {
   sidestep_right: null,
 };
 let keeperCurrentAction = null;
-
 let keeperCurrentName = 'idle';
+
+// Module scope'da tanımla — boot() ve loop() her ikisi de erişebilsin
+const keeperMixers = {};
+const keeperScenes = {};
 
 function keeperFadeTo(name, fadeDur = 0.25) {
   if(!keeperActions[name]){
@@ -800,8 +803,6 @@ async function boot(){
 
     // Her GLB kendi scene+mixer ikilisiyle çalışır
     // keeperRoot aktif scene'i içerir, animasyon değişince scene swap edilir
-    const keeperScenes = {};
-    const keeperMixers = {};
 
     function addKeeperClip(gltf, name, loop=THREE.LoopOnce){
       if(!gltf){console.warn('[boot] GLB null, atlanıyor:', name);return;}
