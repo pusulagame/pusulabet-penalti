@@ -827,8 +827,7 @@ async function boot(){
       goalObj=gfbx;
       console.log('[Goal.fbx] yüklendi');
 
-      // Kale secim alanini goal model bbox'una gore guncelle.
-      // Hedef meshlerini goal'a child yap (world'e bagimsiz overlay gibi davranmasin).
+      // Goal bbox'una gore hedefleme rect'i (raycast clamp) guncelle.
       gfbx.updateMatrixWorld(true);
       const b2=new THREE.Box3().setFromObject(gfbx);
       // World rect: raycast ve sut hedefleri icin (kale agzinin 2D projeksiyonu)
@@ -840,10 +839,7 @@ async function boot(){
         z:TARGET_Z_WORLD,
       };
 
-      // Target group'nu goal'a bagla
-      if(hiG.parent!==gfbx){ gfbx.add(hiG); }
-
-      // Goal local rect: hiG icindeki plane'ler goal local uzayinda durur
+      // Goal local rect: hedef plane (goalHitMesh) goal local uzayinda durur
       const inv=new THREE.Matrix4().copy(gfbx.matrixWorld).invert();
       const wMin=b2.min.clone().applyMatrix4(inv);
       const wMax=b2.max.clone().applyMatrix4(inv);
