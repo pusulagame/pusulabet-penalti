@@ -377,8 +377,12 @@ let parts=[],confs=[];
 let ballAnim={on:false,t:0,dur:0.55,p0:null,p1:null,p2:null};
 let kAnim={phase:'idle',t:0,sx:0,tx:0,side:'center',yN:0};
 const K_REACT_DELAY=0.14;
+const PRE_SHOT_DELAY=1.0;      // hedef secildikten sonra bekleme (s)
+const KICK_CONTACT_DELAY=0.26; // kick animasyonunda topa temas (s)
 let shotTarget=null;
 const DEBUG_SHOT=false;
+let pendingShotTimer=null;
+let pendingKickTimer=null;
 
 function easeOut(t){return 1-Math.pow(1-t,3);}
 function easeIO(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
@@ -409,7 +413,8 @@ function shootAt(worldTarget, localTarget){
   if(!ready||!canShoot||!gameActive) return;
   canShoot=false;
   document.getElementById('banner').style.display='none';
-  aimMarker.material.opacity=0;
+  // hedef noktasi secildi — kisa marker goster
+  aimMarker.material.opacity=0.75;
 
   // clamp again for safety
   const lp=localTarget ? localTarget.clone() : (goalObj?goalObj.worldToLocal(worldTarget.clone()):worldTarget.clone());
@@ -437,27 +442,34 @@ function shootAt(worldTarget, localTarget){
   const highPenalty=yN>0.66 ? -0.12 : 0;
   const saved=Math.random()<(base+highPenalty);
 
-  // Keeper: ALWAYS from center, then dive after reaction delay (no pre-position)
-  if(keeper){
-    keeper.root.position.x=0;
-    keeper.root.position.y=0;
-    kAnim={phase:'react',t:0,sx:0,tx:diveX,side,yN};
-  }
+  // Eski timer'lari temizle (spam tap/click)
+  if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
+  if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
 
-  // Arda kick
-  playAnim(arda,'kick');
+  // 1) hedef secildi → ~1s sonra kick baslat
+  pendingShotTimer=setTimeout(()=>{
+    playAnim(arda,'kick');
 
-  // Ball trajectory
-  const p0=ballMesh.position.clone();
-  const p2=target.clone();
-  const p1=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
-  p1.y+=2.0+Math.random()*0.4;
-  ballAnim={on:true,t:0,dur:0.55,p0,p1,p2};
-  if(DEBUG_SHOT){
-    console.log('[shot] target',shotTarget,'ballStart',p0,'dir',new THREE.Vector3().subVectors(p2,p0).normalize());
-  }
+    // 2) kick temas aninda topu firlat + kaleciyi reaksiyona sok
+    pendingKickTimer=setTimeout(()=>{
+      // keeper her zaman ortadan baslar (teleport yok)
+      if(keeper){
+        keeper.root.position.x=0;
+        keeper.root.position.y=0;
+        kAnim={phase:'react',t:0,sx:0,tx:diveX,side,yN};
+      }
 
-  setTimeout(()=>land(saved,target),560);
+      const p0=ballMesh.position.clone();
+      const p2=target.clone();
+      const p1=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
+      p1.y+=2.0+Math.random()*0.4;
+      ballAnim={on:true,t:0,dur:0.55,p0,p1,p2};
+      if(DEBUG_SHOT){
+        console.log('[shot] target',shotTarget,'ballStart',p0,'dir',new THREE.Vector3().subVectors(p2,p0).normalize());
+      }
+      setTimeout(()=>land(saved,target),560);
+    }, Math.round(KICK_CONTACT_DELAY*1000));
+  }, Math.round(PRE_SHOT_DELAY*1000));
 }
 
 function land(saved,wt){
@@ -488,6 +500,8 @@ function showRes(ok){
   ov.classList.add('show');
   setTimeout(()=>{
     ov.classList.remove('show');
+    if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
+    if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
     if(ballMesh){ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);ballAnim.on=false;}
     playAnim(arda,'idle');
     if(keeper){
@@ -522,6 +536,8 @@ function resetGame(){
   document.getElementById('final').classList.remove('show');
   document.getElementById('banner').style.display='';
   parts=[];confs=[];buildDots();
+  if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
+  if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
   if(ballMesh){ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);ballAnim.on=false;}
   playAnim(arda,'idle');
   if(keeper){
@@ -605,7 +621,8 @@ function loop(ts){
       kAnim.t+=dt;
       const u=Math.min(kAnim.t/0.42,1),e=easeOut(u);
       keeper.root.position.x=kAnim.sx+(kAnim.tx-kAnim.sx)*e;
-      keeper.root.position.y=Math.sin(u*Math.PI)*0.15;
+      // Dalis yuksekligini sinirla (bar ustune cikmasin / ziplama abartmasin)
+      keeper.root.position.y=Math.sin(u*Math.PI)*0.10;
       if(u>=1)kAnim.phase='hold';
     }else if(kAnim.phase==='hold'){
       // Pozisyonu sabitle (idle bob'a dusup ziplama/floating yapmasin)
