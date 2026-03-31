@@ -107,6 +107,11 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
 .sdesc{font-size:15px;color:rgba(255,255,255,.65);margin-bottom:22px;line-height:1.5;}
 .srules{display:flex;justify-content:center;gap:28px;margin-bottom:24px;}
 .ri{text-align:center;}.ric{font-size:26px;}.rit{font-size:12px;color:rgba(255,255,255,.48);display:block;margin-top:3px;}
+.sform{margin-bottom:14px;text-align:left;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:12px 14px;backdrop-filter:blur(6px);}
+.slab{display:block;font-size:12px;letter-spacing:1px;color:rgba(255,255,255,.55);margin-bottom:8px;}
+.sinp{width:100%;border-radius:14px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.35);color:#fff;padding:12px 12px;font-size:16px;outline:none;}
+.sinp:focus{border-color:rgba(255,215,0,.55);box-shadow:0 0 0 3px rgba(255,215,0,.12);}
+.serr{margin-top:8px;font-size:12px;color:rgba(255,82,82,.92);min-height:16px;}
 </style>
 </head>
 <body>
@@ -166,6 +171,11 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
         <div class="ri"><div class="ric">🥅</div><span class="rit">9 Kose</span></div>
         <div class="ri"><div class="ric">✨</div><span class="rit">3D</span></div>
       </div>
+      <div class="sform">
+        <label class="slab" for="pbUser">Pusulabet Kullanıcı Adı</label>
+        <input class="sinp" id="pbUser" autocomplete="username" inputmode="text" maxlength="24" placeholder="ornek: pusulaci123">
+        <div class="serr" id="pbErr"></div>
+      </div>
       <button type="button" class="btnP" id="btnStart" style="font-size:26px;padding:16px;pointer-events:all;">⚽ BASLAT</button>
     </div>
   </div>
@@ -215,6 +225,34 @@ const ld=document.getElementById('loading');
 const ldFill=document.getElementById('ldFill');
 const ldPct=document.getElementById('ldPct');
 const btnStart=document.getElementById('btnStart');
+const pbUserEl=document.getElementById('pbUser');
+const pbErrEl=document.getElementById('pbErr');
+const PB_USER_KEY='pusulabet_username';
+let pusulabetUsername='';
+
+function normPbUser(v){
+  return (v||'').trim().replace(/\s+/g,' ').slice(0,24);
+}
+function setPbError(msg){
+  if(pbErrEl) pbErrEl.textContent = msg || '';
+}
+function readPbUser(){
+  const v = pbUserEl ? pbUserEl.value : '';
+  return normPbUser(v);
+}
+function loadPbUser(){
+  try{
+    pusulabetUsername = normPbUser(localStorage.getItem(PB_USER_KEY) || '');
+  }catch(e){
+    pusulabetUsername = '';
+  }
+  if(pbUserEl) pbUserEl.value = pusulabetUsername;
+}
+function persistPbUser(v){
+  pusulabetUsername = normPbUser(v);
+  try{ localStorage.setItem(PB_USER_KEY, pusulabetUsername); }catch(e){}
+}
+loadPbUser();
 if(btnStart){
   btnStart.disabled=true;
   btnStart.style.opacity='0.65';
@@ -736,7 +774,20 @@ function showFinal(){
   document.getElementById('final').classList.add('show');
   gameActive=false;
   spawnC(W/2,H*0.35);
-  if(tg){try{tg.sendData(JSON.stringify({game:'penalti',goals,misses,total:TOTAL}));}catch(e){}}
+  if(tg){
+    try{
+      const score = goals + '/' + TOTAL;
+      tg.sendData(JSON.stringify({
+        game:'penalty',
+        pusulabet_username: pusulabetUsername || '',
+        telegram_id: String(tg?.initDataUnsafe?.user?.id || ''),
+        score,
+        goals,
+        won,
+        total: TOTAL
+      }));
+    }catch(e){}
+  }
 }
 
 function resetGame(){
@@ -788,6 +839,14 @@ window.startGame=startGame;
 document.getElementById('btnStart')?.addEventListener('click',e=>{
   e.preventDefault();
   if(!ready) return;
+  const v = readPbUser();
+  if(!v){
+    setPbError('Lütfen Pusulabet kullanıcı adını gir.');
+    pbUserEl?.focus?.();
+    return;
+  }
+  setPbError('');
+  persistPbUser(v);
   startGame();
 });
 
