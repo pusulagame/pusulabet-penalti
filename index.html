@@ -235,8 +235,8 @@ let goalRect={xMin:-GW/2,xMax:GW/2,yMin:GOAL_YOF,yMax:GOAL_YOF+GH,z:GZ};
 // Goal local uzayinda hedef rect (hiG goalObj child olunca local yerlesim buradan gelir)
 let goalLocalRect={xMin:-GW/2,xMax:GW/2,yMin:0,yMax:GH,z:0};
 
-// Kale plane (raycast) — constant sonradan guncellenebilir
-const goalPlane=new THREE.Plane(new THREE.Vector3(0,0,1),-TARGET_Z_WORLD);
+// Goal hit plane mesh (raycast): goal ile aynı düzlemde ve aynı dönüşte
+let goalHitMesh=null;
 const rc=new THREE.Raycaster();
 const ndc=new THREE.Vector2();
 const hit=new THREE.Vector3();
@@ -244,6 +244,36 @@ const hit=new THREE.Vector3();
 // Highlight meshler (kale secici) — goalObj child olacak; yoksa world'e eklenir
 const hiG=new THREE.Group();
 scene.add(hiG);
+
+function ensureGoalHitMesh(){
+  const w=goalLocalRect.xMax-goalLocalRect.xMin;
+  const h=goalLocalRect.yMax-goalLocalRect.yMin;
+  const cx=(goalLocalRect.xMin+goalLocalRect.xMax)/2;
+  const cy=(goalLocalRect.yMin+goalLocalRect.yMax)/2;
+
+  if(!goalHitMesh){
+    goalHitMesh=new THREE.Mesh(
+      new THREE.PlaneGeometry(Math.max(0.01,w),Math.max(0.01,h)),
+      new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthTest:false,depthWrite:false})
+    );
+    goalHitMesh.name='goalHitMesh';
+    goalHitMesh.renderOrder=-1;
+  }else{
+    goalHitMesh.geometry.dispose();
+    goalHitMesh.geometry=new THREE.PlaneGeometry(Math.max(0.01,w),Math.max(0.01,h));
+  }
+
+  // Plane, goal local space'te durur (goal'a child olunca rotasyon otomatik aynı olur)
+  goalHitMesh.position.set(cx,cy,goalLocalRect.z);
+
+  // Parent: goal varsa goal'a child; yoksa world'e koy (fallback)
+  if(goalObj){
+    if(goalHitMesh.parent!==goalObj) goalObj.add(goalHitMesh);
+  }else{
+    if(goalHitMesh.parent!==scene) scene.add(goalHitMesh);
+    goalHitMesh.position.set(0,GOAL_YOF+GH/2,TARGET_Z_WORLD);
+  }
+}
 
 function rebuildTargets(){
   while(hiG.children.length) hiG.remove(hiG.children[0]);
@@ -268,6 +298,7 @@ function rebuildTargets(){
     m.userData={r,c};
     hiG.add(m);
   }
+  ensureGoalHitMesh();
 }
 rebuildTargets();
 
@@ -276,10 +307,15 @@ function setHi(r,c,op){
 }
 
 function worldCell(row,col){
-  const w=goalRect.xMax-goalRect.xMin;
-  const h=goalRect.yMax-goalRect.yMin;
+  const w=goalLocalRect.xMax-goalLocalRect.xMin;
+  const h=goalLocalRect.yMax-goalLocalRect.yMin;
   const cw=w/3,ch=h/3;
-  return new THREE.Vector3(goalRect.xMin+cw*(col+0.5), goalRect.yMin+ch*((2-row)+0.5), TARGET_Z_WORLD);
+  const lp=new THREE.Vector3(
+    goalLocalRect.xMin+cw*(col+0.5),
+    goalLocalRect.yMin+ch*((2-row)+0.5),
+    goalLocalRect.z
+  );
+  return goalObj ? goalObj.localToWorld(lp) : lp.set(lp.x, lp.y+GOAL_YOF, TARGET_Z_WORLD);
 }
 
 // ── FBX YUKLEME ──
@@ -362,15 +398,28 @@ function hover(cx,cy){
   if(!gameActive||!canShoot){setHi(-1,-1,0);return;}
   ndc.x=(cx/W)*2-1;ndc.y=-(cy/H)*2+1;
   rc.setFromCamera(ndc,cam);
-  if(!rc.ray.intersectPlane(goalPlane,hit)){setHi(-1,-1,0);hoverCell={r:-1,c:-1};return;}
+  if(!goalHitMesh){setHi(-1,-1,0);hoverCell={r:-1,c:-1};return;}
+  const ints=rc.intersectObject(goalHitMesh,false);
+  if(!ints||ints.length===0){setHi(-1,-1,0);hoverCell={r:-1,c:-1};return;}
+  const wp=ints[0].point;
+  const lp=goalObj ? goalObj.worldToLocal(wp.clone()) : wp.clone();
+
+  // Clamp inside goal local bounds
+  lp.x=Math.max(goalLocalRect.xMin,Math.min(goalLocalRect.xMax,lp.x));
+  lp.y=Math.max(goalLocalRect.yMin,Math.min(goalLocalRect.yMax,lp.y));
+  lp.z=goalLocalRect.z;
+  // world point (debug / future)
+  hit.copy(goalObj ? goalObj.localToWorld(lp.clone()) : lp);
+
+  // Bounds check (after clamp always inside, but keep for safety)
   if(hit.x<goalRect.xMin||hit.x>goalRect.xMax||hit.y<goalRect.yMin||hit.y>goalRect.yMax){
     setHi(-1,-1,0);hoverCell={r:-1,c:-1};return;
   }
-  const w=goalRect.xMax-goalRect.xMin;
-  const h=goalRect.yMax-goalRect.yMin;
+  const w=goalLocalRect.xMax-goalLocalRect.xMin;
+  const h=goalLocalRect.yMax-goalLocalRect.yMin;
   const cw=w/3,ch=h/3;
-  const col=Math.min(2,Math.max(0,Math.floor((hit.x-goalRect.xMin)/cw)));
-  const row=2-Math.min(2,Math.max(0,Math.floor((hit.y-goalRect.yMin)/ch)));
+  const col=Math.min(2,Math.max(0,Math.floor((lp.x-goalLocalRect.xMin)/cw)));
+  const row=2-Math.min(2,Math.max(0,Math.floor((lp.y-goalLocalRect.yMin)/ch)));
   hoverCell={r:row,c:col};setHi(row,col,0.28);
 }
 
