@@ -131,8 +131,8 @@ const CFG = {
     bg:   asset('bg.png'),
     ball: asset('ball.png'),
     glb: {
-      arda_kick:             asset('arda kick.glb'),
-      arda_idle:             asset('arda idle.glb'),
+      arda_kick:             asset('arda_kick.glb'),
+      arda_idle:             asset('arda_idle.glb'),
       keeper_idle:           asset('keeper_idle.glb'),
       keeper_dive_left:      asset('keeper_dive_left.glb'),
       keeper_dive_right:     asset('keeper_dive_right.glb'),
@@ -142,8 +142,8 @@ const CFG = {
       keeper_sidestep_right: asset('keeper_sidestep_right.glb'),
     }
   },
-  ARDA_HEIGHT:   1.75,
-  KEEPER_HEIGHT: 2.20,
+  ARDA_HEIGHT:   1.75,  // metre — penaltı atıcısı
+  KEEPER_HEIGHT: 2.80,  // metre — kaleci daha büyük görünsün
 };
 
 // Boot başlamadan önce base path'i logla — 404 hatalarında kontrol et
@@ -222,13 +222,20 @@ let ardaMixer = null;
 const ardaActions = { idle: null, kick: null };
 let ardaCurrentAction = null;
 
+let ardaCurrentName = '';
+
 function ardaFadeTo(name, fadeDur = 0.2) {
-  const next = ardaActions[name];
-  if (!next) return;
-  next.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
-  if (ardaCurrentAction && ardaCurrentAction !== next)
-    ardaCurrentAction.crossFadeTo(next, fadeDur, true);
-  ardaCurrentAction = next;
+  if(!ardaMixer || !ardaActions[name]) return;
+  if(ardaCurrentName === name) return;
+
+  // Scene swap
+  if(ardaMixer._idleScene) ardaMixer._idleScene.visible = (name === 'idle');
+  if(ardaMixer._kickScene) ardaMixer._kickScene.visible = (name === 'kick');
+
+  ardaCurrentName = name;
+  ardaCurrentAction = ardaActions[name];
+  ardaCurrentAction.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
+  console.log('[ardaFadeTo] →', name);
 }
 
 // ——————————————————————————————————————————————
@@ -245,7 +252,7 @@ const keeperActions = {
   sidestep_right: null,
 };
 let keeperCurrentAction = null;
-let keeperCurrentName = 'idle';
+let keeperCurrentName = ''; // boş — ilk çağrıda guard geçsin
 
 // Module scope'da tanımla — boot() ve loop() her ikisi de erişebilsin
 const keeperMixers = {};
@@ -259,9 +266,9 @@ function keeperFadeTo(name, fadeDur = 0.25) {
   }
   if(keeperCurrentName === name) return;
 
-  // Önceki scene'i gizle
+  // Önceki scene gizle
   if(keeperScenes[keeperCurrentName]) keeperScenes[keeperCurrentName].visible = false;
-  // Yeni scene'i göster
+  // Yeni scene göster
   if(keeperScenes[name]) keeperScenes[name].visible = true;
 
   keeperCurrentName = name;
@@ -518,7 +525,7 @@ function resetRoundVisuals(){
 
 function resetPositions(){
   resetRoundVisuals();
-  if(ardaRoot){ ardaRoot.position.set(0,0,0.55); ardaRoot.rotation.set(0,Math.PI,0); }
+  if(ardaRoot){ ardaRoot.position.set(0,0,2.2); ardaRoot.rotation.set(0,Math.PI,0); }
   if(keeperRoot){ keeperRoot.position.set(0,0,GZ+0.35); keeperRoot.rotation.set(0,0,0); }
   keeperFadeTo('idle', 0.1);
   kState={phase:'idle',t:0,sx:0,tx:0,srot:0,trot:0,saved:false};
@@ -623,8 +630,9 @@ function loop(ts){
     requestAnimationFrame(loop); return;
   }
 
-  // AnimationMixer güncelle
-  if(ardaMixer) ardaMixer.update(dt);
+  // AnimationMixer güncelle — Arda için ayrı idle/kick mixer'ları
+  if(ardaMixer && ardaMixer.idle) ardaMixer.idle.update(dt);
+  if(ardaMixer && ardaMixer.kick) ardaMixer.kick.update(dt);
   // Tüm kaleci mixer'larını güncelle
   Object.values(keeperMixers).forEach(mx => mx.update(dt));
 
@@ -748,50 +756,62 @@ async function boot(){
     if(!keeperIdleGltf) throw new Error('Zorunlu: keeper_idle.glb yüklenemedi');
 
     // ——————————————————————————————
-    // Arda Güler kurulumu (opsiyonel — GLB yoksa atla)
+    // Arda Güler kurulumu
     // ——————————————————————————————
-    if(ardaKickGltf){
-      const ardaKickScene = ardaKickGltf.scene;
-      normalizeGLB(ardaKickScene, CFG.ARDA_HEIGHT);
-      ardaKickScene.traverse(c=>{ if(c.isMesh){ c.castShadow=false; c.receiveShadow=false; } });
-
+    if(ardaKickGltf && ardaIdleGltf){
       ardaRoot=new THREE.Group();
-      ardaRoot.add(ardaKickScene);
-      ardaRoot.position.set(0,0,0.55);
+      ardaRoot.position.set(0, 0, 2.2); // penaltı noktası civarı, kale gerisinde değil
       ardaRoot.rotation.y=Math.PI;
       ardaRoot.renderOrder=10;
       scene.add(ardaRoot);
 
-      ardaMixer=new THREE.AnimationMixer(ardaKickScene);
+      // Idle scene — varsayılan görünür
+      const ardaIdleScene = ardaIdleGltf.scene;
+      normalizeGLB(ardaIdleScene, CFG.ARDA_HEIGHT);
+      ardaIdleScene.traverse(c=>{ if(c.isMesh){ c.castShadow=false; c.receiveShadow=false; } });
+      ardaIdleScene.visible = true;
+      ardaRoot.add(ardaIdleScene);
 
+      const ardaIdleMixer = new THREE.AnimationMixer(ardaIdleScene);
+      if(ardaIdleGltf.animations.length>0){
+        const idleClip = ardaIdleGltf.animations[0].clone();
+        removePositionTracks(idleClip); idleClip.name='idle';
+        ardaActions.idle = ardaIdleMixer.clipAction(idleClip);
+        ardaActions.idle.setLoop(THREE.LoopRepeat, Infinity);
+        ardaActions.idle.play();
+        ardaCurrentAction = ardaActions.idle;
+      }
+
+      // Kick scene — başta gizli
+      const ardaKickScene = ardaKickGltf.scene;
+      normalizeGLB(ardaKickScene, CFG.ARDA_HEIGHT);
+      ardaKickScene.traverse(c=>{ if(c.isMesh){ c.castShadow=false; c.receiveShadow=false; } });
+      ardaKickScene.visible = false;
+      ardaRoot.add(ardaKickScene);
+
+      const ardaKickMixer = new THREE.AnimationMixer(ardaKickScene);
       if(ardaKickGltf.animations.length>0){
-        const kickClip=ardaKickGltf.animations[0];
+        const kickClip = ardaKickGltf.animations[0].clone();
         removePositionTracks(kickClip); kickClip.name='kick';
-        ardaActions.kick=ardaMixer.clipAction(kickClip);
+        ardaActions.kick = ardaKickMixer.clipAction(kickClip);
         ardaActions.kick.setLoop(THREE.LoopOnce,1);
         ardaActions.kick.clampWhenFinished=true;
       }
 
-      const ardaIdleSrc = ardaIdleGltf || ardaKickGltf;
-      if(ardaIdleSrc.animations.length>0){
-        const idleClip=ardaIdleSrc.animations[0];
-        removePositionTracks(idleClip); idleClip.name='arda_idle';
-        ardaActions.idle=ardaMixer.clipAction(idleClip);
-        ardaActions.idle.setLoop(THREE.LoopRepeat,Infinity);
-        ardaActions.idle.play();
-        ardaCurrentAction=ardaActions.idle;
-      }
-      console.log('[boot] Arda kurulumu OK');
+      // ardaMixer yerine her ikisi için ayrı mixer — loop'ta her ikisini güncelle
+      ardaMixer = { idle: ardaIdleMixer, kick: ardaKickMixer,
+        _idleScene: ardaIdleScene, _kickScene: ardaKickScene };
+
+      console.log('[boot] Arda kurulumu OK — idle+kick scenes');
     } else {
-      console.warn('[boot] arda_kick.glb yüklenemedi — Arda karakteri gösterilmeyecek, oyun devam ediyor');
+      console.warn('[boot] Arda GLB eksik — gösterilmeyecek');
     }
 
     // ——————————————————————————————
     // Kaleci kurulumu
     // ——————————————————————————————
     const keeperIdleScene = keeperIdleGltf.scene;
-  CFG.KEEPER_HEIGHT = 2.20;  // daha büyük kaleci
-  normalizeGLB(keeperIdleScene, CFG.KEEPER_HEIGHT);
+    normalizeGLB(keeperIdleScene, CFG.KEEPER_HEIGHT);
     keeperIdleScene.traverse(c=>{ if(c.isMesh){ c.castShadow=false; c.receiveShadow=false; } });
 
     keeperRoot=new THREE.Group();
