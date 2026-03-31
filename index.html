@@ -220,6 +220,9 @@ const CC=['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'];
 let tg=null;
 try{tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch(e){}
 
+// Sheets Web App URL — bot.py PENALTY_SHEETS_URL / Apps Script dağıtımı ile aynı olmalı
+const PENALTY_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbx9L5_DApizBucQXBfWzp-JJBLig1XQ6OmBhVadf4RawvqQVCVsyZ47sFZ9onCJASfq/exec';
+
 // ── LOADING UI (progress bar) ──
 const ld=document.getElementById('loading');
 const ldFill=document.getElementById('ldFill');
@@ -818,8 +821,11 @@ function showFinal(){
       goals: String(p.goals || 0),
       kazandi: 'EVET'
     });
-    const url = 'https://script.google.com/macros/s/AKfycbw8jk8phVwVJqUNPAtkLlOM7eQfoN-q7bfLk8tXJhktZSTeV0_nooIv53vakzbmnfuq/exec?' + qs.toString();
-    fetch(url, {mode:'no-cors'}).catch(e=>console.warn('[sheets]',e));
+    const url = PENALTY_SHEETS_URL + '?' + qs.toString();
+    try{
+      fetch(url, { mode: 'no-cors', cache: 'no-store' }).catch(()=>{});
+      (new Image()).src = url;
+    }catch(e){ console.warn('[sheets]', e); }
   }
 }
 
