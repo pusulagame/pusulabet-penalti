@@ -236,7 +236,10 @@ let goalRect={xMin:-GW/2,xMax:GW/2,yMin:GOAL_YOF,yMax:GOAL_YOF+GH,z:GZ};
 let goalLocalRect={xMin:-GW/2,xMax:GW/2,yMin:0,yMax:GH,z:0};
 
 // ── SAHNE OBJELERI (TDZ hatasini onlemek icin erken tanim) ──
-// (moved earlier) arda/keeper/goalObj/ballObj
+let arda=null;   // {models:{idle,kick}, mixers:{idle,kick}, actions:{idle,kick}, current}
+let keeper=null; // {models:{idle,dive_left,...}, mixers:{...}, actions:{...}, current}
+let goalObj=null; // goal.fbx
+let ballObj=null; // ball.fbx (opsiyonel)
 
 // Goal hit plane mesh (raycast): goal ile aynı düzlemde ve aynı dönüşte
 let goalHitMesh=null;
@@ -354,10 +357,7 @@ function normalizeChar(obj, targetH){
 // Her FBX dosyasi kendi model+mixer+action ikilisiyle calisir
 // Animasyon gecisi: onceki model gizlenir, yeni model gosterilir
 
-let arda=null;   // {models:{idle,kick}, mixers:{idle,kick}, actions:{idle,kick}, current}
-let keeper=null; // {models:{idle,dive_left,...}, mixers:{...}, actions:{...}, current}
-let goalObj=null; // goal.fbx
-let ballObj=null; // ball.fbx (opsiyonel)
+// (moved earlier) arda/keeper/goalObj/ballObj
 
 function playAnim(ch, name){
   if(!ch || !ch.actions[name]) return;
