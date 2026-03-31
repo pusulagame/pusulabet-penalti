@@ -131,8 +131,8 @@ const CFG = {
     bg:   asset('bg.png'),
     ball: asset('ball.png'),
     glb: {
-      arda_kick:             asset('arda_kick.glb'),
-      arda_idle:             asset('arda_idle.glb'),
+      arda_kick:             asset('arda kick.glb'),
+      arda_idle:             asset('arda idle.glb'),
       keeper_idle:           asset('keeper_idle.glb'),
       keeper_dive_left:      asset('keeper_dive_left.glb'),
       keeper_dive_right:     asset('keeper_dive_right.glb'),
@@ -142,8 +142,8 @@ const CFG = {
       keeper_sidestep_right: asset('keeper_sidestep_right.glb'),
     }
   },
-  ARDA_HEIGHT:   1.75,  // metre
-  KEEPER_HEIGHT: 1.90,  // metre
+  ARDA_HEIGHT:   1.75,
+  KEEPER_HEIGHT: 2.20,
 };
 
 // Boot başlamadan önce base path'i logla — 404 hatalarında kontrol et
@@ -246,18 +246,25 @@ const keeperActions = {
 };
 let keeperCurrentAction = null;
 
+let keeperCurrentName = 'idle';
+
 function keeperFadeTo(name, fadeDur = 0.25) {
-  const next = keeperActions[name];
-  if (!next) {
-    console.warn('[keeperFadeTo] Animasyon bulunamadı:', name);
-    if (name !== 'idle' && keeperActions.idle) keeperFadeTo('idle', fadeDur);
+  if(!keeperActions[name]){
+    console.warn('[keeperFadeTo] Animasyon yok:', name);
+    if(name !== 'idle') keeperFadeTo('idle', fadeDur);
     return;
   }
-  if (keeperCurrentAction === next) return;
-  next.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
-  if (keeperCurrentAction)
-    keeperCurrentAction.crossFadeTo(next, fadeDur, true);
-  keeperCurrentAction = next;
+  if(keeperCurrentName === name) return;
+
+  // Önceki scene'i gizle
+  if(keeperScenes[keeperCurrentName]) keeperScenes[keeperCurrentName].visible = false;
+  // Yeni scene'i göster
+  if(keeperScenes[name]) keeperScenes[name].visible = true;
+
+  keeperCurrentName = name;
+  keeperCurrentAction = keeperActions[name];
+  keeperCurrentAction.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
+  console.log('[keeperFadeTo] →', name);
 }
 
 /**
@@ -614,8 +621,9 @@ function loop(ts){
   }
 
   // AnimationMixer güncelle
-  if(ardaMixer)   ardaMixer.update(dt);
-  if(keeperMixer) keeperMixer.update(dt);
+  if(ardaMixer) ardaMixer.update(dt);
+  // Tüm kaleci mixer'larını güncelle
+  Object.values(keeperMixers).forEach(mx => mx.update(dt));
 
   // Top Bezier hareketi
   if(ballAnim.active){
@@ -790,22 +798,49 @@ async function boot(){
     keeperRoot.renderOrder=8;
     scene.add(keeperRoot);
 
-    keeperMixer=new THREE.AnimationMixer(keeperIdleScene);
+    // Her GLB kendi scene+mixer ikilisiyle çalışır
+    // keeperRoot aktif scene'i içerir, animasyon değişince scene swap edilir
+    const keeperScenes = {};
+    const keeperMixers = {};
 
-    // Yardımcı: GLTF'ten clip ayıkla ve keeperActions'a ekle
-    // gltf null ise veya animasyon yoksa sessizce atla
     function addKeeperClip(gltf, name, loop=THREE.LoopOnce){
       if(!gltf){console.warn('[boot] GLB null, atlanıyor:', name);return;}
       if(!gltf.animations.length){console.warn('[boot] Animasyon yok:', name);return;}
-      const clip=gltf.animations[0];
-      removePositionTracks(clip); clip.name=name;
-      const action=keeperMixer.clipAction(clip);
+
+      const scn = gltf.scene;
+      normalizeGLB(scn, CFG.KEEPER_HEIGHT);
+      scn.traverse(c=>{ if(c.isMesh){ c.castShadow=false; c.receiveShadow=false; } });
+      scn.visible = false; // başta gizli
+
+      keeperRoot.add(scn);
+      keeperScenes[name] = scn;
+
+      const mx = new THREE.AnimationMixer(scn);
+      const clip = gltf.animations[0].clone();
+      removePositionTracks(clip); clip.name = name;
+      const action = mx.clipAction(clip);
       action.setLoop(loop, loop===THREE.LoopOnce?1:Infinity);
       if(loop===THREE.LoopOnce) action.clampWhenFinished=true;
-      keeperActions[name]=action;
+      keeperMixers[name] = mx;
+      keeperActions[name] = action;
+      console.log('[boot] Keeper scene+clip:', name, clip.duration.toFixed(2)+'s');
     }
 
-    addKeeperClip(keeperIdleGltf,  'idle',           THREE.LoopRepeat);
+    // Idle scene başta görünür
+    keeperIdleScene.visible = true;
+    keeperScenes['idle'] = keeperIdleScene;
+    const idleMx = new THREE.AnimationMixer(keeperIdleScene);
+    keeperMixers['idle'] = idleMx;
+
+    // Idle animasyonu
+    if(keeperIdleGltf.animations.length){
+      const idleClip = keeperIdleGltf.animations[0].clone();
+      removePositionTracks(idleClip); idleClip.name='idle';
+      const idleAction = idleMx.clipAction(idleClip);
+      idleAction.setLoop(THREE.LoopRepeat, Infinity);
+      keeperActions['idle'] = idleAction;
+    }
+
     addKeeperClip(keeperDiveLGltf,  'dive_left');
     addKeeperClip(keeperDiveRGltf,  'dive_right');
     addKeeperClip(keeperSaveLLGltf, 'save_low_left');
@@ -816,7 +851,9 @@ async function boot(){
     // Idle ile başla
     if(keeperActions.idle){
       keeperActions.idle.play();
-      keeperCurrentAction=keeperActions.idle;
+      keeperCurrentAction = keeperActions.idle;
+      keeperCurrentName = 'idle';
+      if(keeperScenes['idle']) keeperScenes['idle'].visible = true;
     }
 
     // ——————————————————————————————
