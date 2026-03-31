@@ -106,43 +106,33 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
 </script>
 <script type="module">
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
-// ── ASSET YOLLARI ──────────────────────────────────────────
+// ── ASSET YOLLARI ──
 const BASE = (()=>{
   const p = window.location.pathname;
   const dir = p.endsWith('/') ? p : p.slice(0, p.lastIndexOf('/')+1);
   return window.location.origin + dir + 'assets/';
 })();
 
-const A = {
-  bg:   BASE+'bg.png',
-  ball: BASE+'ball.png',
-  arda_idle:            BASE+'arda/idle.glb',
-  arda_kick:            BASE+'arda/kick.glb',
-  keeper_idle:          BASE+'keeper/idle.glb',
-  keeper_dive_left:     BASE+'keeper/dive_left.glb',
-  keeper_dive_right:    BASE+'keeper/dive_right.glb',
-  keeper_save_ll:       BASE+'keeper/save_low_left.glb',
-  keeper_save_lr:       BASE+'keeper/save_low_right.glb',
-  keeper_step_l:        BASE+'keeper/sidestep_left.glb',
-  keeper_step_r:        BASE+'keeper/sidestep_right.glb',
-};
-
-// ── SABITLER ───────────────────────────────────────────────
+// ── SABITLER ──
 const TOTAL=5, BALL_R=0.11;
 const GW=11.5, GH=3.0, GZ=-11;
-const GOAL_YOF=1.8;   // kale alt yuksekligi (hucre hesabi icin)
-const ARDA_H=1.82, KEEPER_H=2.20;
+const GOAL_YOF=1.8;
+// FBX Mixamo modelleri genellikle 100x buyuk gelir (cm cinsinden)
+// normalizeChar ile hedef boya scale edilir
+const ARDA_TARGET_H   = 1.82;  // metre — kamera uzakligi ile kucuk gorunur
+const KEEPER_TARGET_H = 1.90;  // metre — kale onunde buyuk gorunmeli
+
 const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡"];
 const MMSG=["Kaleci tuttu! 🧤","Az kaldi! 😅","Direkce carpti!","Kacti! 😬","Kaleci sezdi! 👀"];
 const CC=['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'];
 
-// ── TELEGRAM ───────────────────────────────────────────────
+// ── TELEGRAM ──
 let tg=null;
 try{tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch(e){}
 
-// ── THREE.JS ───────────────────────────────────────────────
+// ── THREE.JS ──
 const canvas=document.getElementById('c');
 const fx=document.getElementById('fx');
 const fctx=fx.getContext('2d');
@@ -150,7 +140,7 @@ let W=innerWidth,H=innerHeight;
 
 const scene=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(38,W/H,0.1,200);
-cam.position.set(0,0.85,5.5);
+cam.position.set(0,1.2,6.0);
 cam.lookAt(0,1.5,GZ);
 
 const rdr=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
@@ -164,20 +154,29 @@ function resize(){
   canvas.width=W;canvas.height=H;
   fx.width=W;fx.height=H;
   rdr.setSize(W,H,false);
-  cam.aspect=W/H;cam.fov=H>W?55:38;
+  cam.aspect=W/H;
+  cam.fov=H>W?55:38;
   cam.updateProjectionMatrix();
 }
-resize();addEventListener('resize',resize);
+resize();
+addEventListener('resize',resize);
 
-scene.add(new THREE.AmbientLight(0xffffff,0.75));
+// Isiklar
+scene.add(new THREE.AmbientLight(0xffffff,0.8));
 const sun=new THREE.DirectionalLight(0xfff5e6,1.0);
-sun.position.set(-8,22,12);scene.add(sun);
-const fill=new THREE.DirectionalLight(0xaaccff,0.22);
-fill.position.set(10,8,-5);scene.add(fill);
+sun.position.set(-8,22,12);
+scene.add(sun);
+const fill=new THREE.DirectionalLight(0xaaccff,0.25);
+fill.position.set(10,8,-5);
+scene.add(fill);
 
-// Zemin (gorunmez)
-const gnd=new THREE.Mesh(new THREE.PlaneGeometry(120,120),new THREE.MeshStandardMaterial({transparent:true,opacity:0,depthWrite:false}));
-gnd.rotation.x=-Math.PI/2;scene.add(gnd);
+// Zemin
+const gnd=new THREE.Mesh(
+  new THREE.PlaneGeometry(120,120),
+  new THREE.MeshStandardMaterial({transparent:true,opacity:0,depthWrite:false})
+);
+gnd.rotation.x=-Math.PI/2;
+scene.add(gnd);
 
 // Penalti noktasi
 const wm=new THREE.MeshBasicMaterial({color:0xffffff});
@@ -196,93 +195,90 @@ const hit=new THREE.Vector3();
 const hiG=new THREE.Group();scene.add(hiG);
 (()=>{
   const cw=GW/3,ch=GH/3;
-  for(let r=0;r<3;r++)for(let c=0;c<3;c++){
-    const m=new THREE.Mesh(new THREE.PlaneGeometry(cw-0.12,ch-0.12),
-      new THREE.MeshBasicMaterial({color:0xffd700,transparent:true,opacity:0,depthWrite:false}));
+  for(let r=0;r<3;r++) for(let c=0;c<3;c++){
+    const m=new THREE.Mesh(
+      new THREE.PlaneGeometry(cw-0.12,ch-0.12),
+      new THREE.MeshBasicMaterial({color:0xffd700,transparent:true,opacity:0,depthWrite:false})
+    );
     m.position.set(-GW/2+cw*(c+0.5),GOAL_YOF+ch*(2-r)+ch/2,GZ+0.04);
-    m.userData={r,c};hiG.add(m);
+    m.userData={r,c};
+    hiG.add(m);
   }
 })();
 
-function setHi(r,c,op){hiG.children.forEach(m=>{m.material.opacity=(r>=0&&m.userData.r===r&&m.userData.c===c)?op:0;});}
+function setHi(r,c,op){
+  hiG.children.forEach(m=>{m.material.opacity=(r>=0&&m.userData.r===r&&m.userData.c===c)?op:0;});
+}
 
 function worldCell(row,col){
   const cw=GW/3,ch=GH/3;
   return new THREE.Vector3(-GW/2+cw*(col+0.5),GOAL_YOF+ch*((2-row)+0.5),GZ+0.02);
 }
 
-// ── GLB YUKLEME ────────────────────────────────────────────
-const gltfLoader=new GLTFLoader();
+// ── FBX YUKLEME ──
+const fbxLoader=new FBXLoader();
 
-async function loadGLB(url){
-  try{
-    const r=await fetch(url);
-    if(!r.ok){console.warn('[GLB] HTTP',r.status,url);return null;}
-    const buf=await r.arrayBuffer();
-    return await new Promise(res=>gltfLoader.parse(buf,'',res,e=>{console.warn('[GLB] parse err',url,e?.message);res(null);}));
-  }catch(e){console.warn('[GLB] fetch err',url,e?.message);return null;}
+function loadFBX(url){
+  return new Promise(resolve=>{
+    fbxLoader.load(url,obj=>resolve(obj),undefined,err=>{
+      console.warn('[FBX] Yuklenemedi:',url,err?.message||err);
+      resolve(null);
+    });
+  });
 }
 
-function normGLB(obj,h){
+// FBX modelini normalize et: hedef yukseklige scale, ayaklari y=0'a getir
+function normalizeChar(obj, targetH){
+  // FBX Mixamo modelleri cm cinsinden gelir (100x buyuk)
+  // Once bbox olc, sonra scale ayarla
   obj.updateMatrixWorld(true);
   const box=new THREE.Box3().setFromObject(obj);
-  const sz=new THREE.Vector3();box.getSize(sz);
-  if(sz.y<0.001)return;
-  obj.scale.multiplyScalar(h/sz.y);
+  const sz=new THREE.Vector3();
+  box.getSize(sz);
+  if(sz.y<0.001){console.warn('normalizeChar: sifir yukseklik');return;}
+  const s=targetH/sz.y;
+  obj.scale.setScalar(s);
   obj.updateMatrixWorld(true);
-  obj.position.y-=new THREE.Box3().setFromObject(obj).min.y;
+  // Ayaklari y=0'a getir
+  const b2=new THREE.Box3().setFromObject(obj);
+  obj.position.y-=b2.min.y;
 }
 
-function noPosTracks(clip){clip.tracks=clip.tracks.filter(t=>!t.name.endsWith('.position'));return clip;}
+// ── KARAKTER YAPISI ──
+// Her FBX dosyasi kendi model+mixer+action ikilisiyle calisir
+// Animasyon gecisi: onceki model gizlenir, yeni model gosterilir
 
-// ── KARAKTER SISTEMI ───────────────────────────────────────
-// ch = { root, scenes, mixers, actions, current }
+let arda=null;   // {models:{idle,kick}, mixers:{idle,kick}, actions:{idle,kick}, current}
+let keeper=null; // {models:{idle,dive_left,...}, mixers:{...}, actions:{...}, current}
 
-function charScene(gltf,h,name,loop,vis){
-  if(!gltf||!gltf.animations.length)return null;
-  const scn=gltf.scene;
-  normGLB(scn,h);
-  scn.traverse(c=>{if(c.isMesh){c.castShadow=false;c.receiveShadow=false;}});
-  scn.visible=vis;
-  const mx=new THREE.AnimationMixer(scn);
-  const clip=gltf.animations[0].clone();
-  noPosTracks(clip);clip.name=name;
-  const act=mx.clipAction(clip);
-  act.setLoop(loop,loop===THREE.LoopOnce?1:Infinity);
-  if(loop===THREE.LoopOnce)act.clampWhenFinished=true;
-  return{scn,mx,act};
-}
+function playAnim(ch, name){
+  if(!ch || !ch.actions[name]) return;
+  if(ch.current===name) return;
 
-function charPlay(ch,name){
-  if(!ch||!ch.actions[name])return;
-  if(ch.current===name)return;
-
-  const prevScn=ch.scenes[ch.current];
-  const nextScn=ch.scenes[name];
-
-  // Sadece farkli scene'lerde visibility swap yap
-  if(prevScn&&nextScn&&prevScn!==nextScn){
-    prevScn.visible=false;
-    nextScn.visible=true;
-  }
+  // Onceki modeli gizle
+  const prev=ch.models[ch.current];
+  if(prev) prev.visible=false;
 
   // Onceki action'i durdur
-  if(ch.current&&ch.actions[ch.current]){
-    ch.actions[ch.current].stop();
-  }
+  const prevAct=ch.actions[ch.current];
+  if(prevAct) prevAct.stop();
 
+  // Yeni modeli goster
+  const next=ch.models[name];
+  if(next) next.visible=true;
+
+  // Yeni action'i baslat
   ch.current=name;
   ch.actions[name].reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
-  console.log('[charPlay]',name);
 }
 
-function charTick(ch,dt){
-  if(!ch)return;
+function tickChar(ch, dt){
+  if(!ch) return;
   Object.values(ch.mixers).forEach(mx=>mx.update(dt));
 }
 
-// ── OYUN DURUMU ────────────────────────────────────────────
-let arda=null,keeper=null,ballMesh=null;
+// ── OYUN DURUMU ──
+let ballMesh=null;
 let goals=0,misses=0,shots=0,gameActive=false,canShoot=true,ready=false;
 let hoverCell={r:-1,c:-1};
 let parts=[],confs=[];
@@ -292,13 +288,15 @@ let kAnim={phase:'idle',t:0,sx:0,tx:0};
 function easeOut(t){return 1-Math.pow(1-t,3);}
 function easeIO(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
 
-// ── HOVER & SHOOT ──────────────────────────────────────────
+// ── HOVER & SHOOT ──
 function hover(cx,cy){
   if(!gameActive||!canShoot){setHi(-1,-1,0);return;}
   ndc.x=(cx/W)*2-1;ndc.y=-(cy/H)*2+1;
   rc.setFromCamera(ndc,cam);
   if(!rc.ray.intersectPlane(goalPlane,hit)){setHi(-1,-1,0);hoverCell={r:-1,c:-1};return;}
-  if(hit.x<-GW/2||hit.x>GW/2||hit.y<GOAL_YOF||hit.y>GOAL_YOF+GH){setHi(-1,-1,0);hoverCell={r:-1,c:-1};return;}
+  if(hit.x<-GW/2||hit.x>GW/2||hit.y<GOAL_YOF||hit.y>GOAL_YOF+GH){
+    setHi(-1,-1,0);hoverCell={r:-1,c:-1};return;
+  }
   const cw=GW/3,ch=GH/3;
   const col=Math.min(2,Math.max(0,Math.floor((hit.x+GW/2)/cw)));
   const row=2-Math.min(2,Math.max(0,Math.floor((hit.y-GOAL_YOF)/ch)));
@@ -306,13 +304,13 @@ function hover(cx,cy){
 }
 
 function pickKAnim(side,row){
-  if(side==='center')return Math.random()<0.5?'sidestep_left':'sidestep_right';
-  if(row===2)return side==='left'?'save_ll':'save_lr';
+  if(side==='center') return Math.random()<0.5?'sidestep_left':'sidestep_right';
+  if(row===2) return side==='left'?'save_low_left':'save_low_right';
   return side==='left'?'dive_left':'dive_right';
 }
 
 function shoot(row,col){
-  if(!ready||!canShoot||!gameActive)return;
+  if(!ready||!canShoot||!gameActive) return;
   canShoot=false;
   document.getElementById('banner').style.display='none';
   setHi(-1,-1,0);
@@ -327,20 +325,20 @@ function shoot(row,col){
   const cm={0:'left',1:'center',2:'right'};
   let saved=false;
   if(side===cm[col]){
-    if(row===0&&col!==1)saved=Math.random()<0.20;
-    else if(row===0)    saved=Math.random()<0.30;
-    else                saved=Math.random()<0.58;
-  }else saved=Math.random()<0.04;
+    if(row===0&&col!==1) saved=Math.random()<0.20;
+    else if(row===0)     saved=Math.random()<0.30;
+    else                 saved=Math.random()<0.58;
+  } else saved=Math.random()<0.04;
 
   // Kaleci
   if(keeper){
-    const sideX={left:-GW*0.30,center:0,right:GW*0.30};
+    const sideX={left:-GW*0.28,center:0,right:GW*0.28};
     kAnim={phase:'dive',t:0,sx:keeper.root.position.x,tx:sideX[side]};
-    charPlay(keeper,pickKAnim(side,row));
+    playAnim(keeper, pickKAnim(side,row));
   }
 
   // Arda kick
-  charPlay(arda,'kick');
+  playAnim(arda,'kick');
 
   // Top
   const p0=ballMesh.position.clone();
@@ -356,7 +354,7 @@ function land(saved,wt){
   shots++;
   const dot=document.getElementById('dot-'+(shots-1));
   const wv=wt.clone().project(cam);
-  const px=(wv.x*0.5+0.5)*W,py=(-wv.y*0.5+0.5)*H;
+  const px=(wv.x*0.5+0.5)*W, py=(-wv.y*0.5+0.5)*H;
   if(!saved){
     goals++;document.getElementById('sGoal').textContent=goals;
     if(dot)dot.classList.add('goal');
@@ -374,15 +372,19 @@ function showRes(ok){
   const ov=document.getElementById('result');
   document.getElementById('rEmoji').textContent=ok?'⚽':'🧤';
   const rt=document.getElementById('rTxt');
-  rt.textContent=ok?'GOL!':'TUTUDU!';rt.className='rtxt '+(ok?'gt':'mt');
+  rt.textContent=ok?'GOL!':'TUTUDU!';
+  rt.className='rtxt '+(ok?'gt':'mt');
   document.getElementById('rSub').textContent=(ok?GMSG:MMSG)[Math.floor(Math.random()*(ok?GMSG:MMSG).length)];
   ov.classList.add('show');
   setTimeout(()=>{
     ov.classList.remove('show');
     if(ballMesh){ballMesh.position.set(0,BALL_R,0);ballAnim.on=false;}
-    charPlay(arda,'idle');
-    if(keeper){kAnim={phase:'return',t:0,sx:keeper.root.position.x,tx:0};charPlay(keeper,'idle');}
-    if(shots>=TOTAL)setTimeout(showFinal,450);
+    playAnim(arda,'idle');
+    if(keeper){
+      kAnim={phase:'return',t:0,sx:keeper.root.position.x,tx:0};
+      playAnim(keeper,'idle');
+    }
+    if(shots>=TOTAL) setTimeout(showFinal,450);
     else{canShoot=true;document.getElementById('banner').style.display='';}
   },1600);
 }
@@ -392,10 +394,10 @@ function showFinal(){
   const t=document.getElementById('fTrophy'),ti=document.getElementById('fTitle'),m=document.getElementById('fMsg');
   document.getElementById('fScore').textContent=goals+'/'+TOTAL+' GOL';
   if(pct===1)      {t.textContent='🏆';ti.textContent='MUKEMMEL!';ti.style.color='#FFD700';m.textContent='Tum penaltilari gol yaptin!';}
-  else if(pct>=0.8){t.textContent='🥇';ti.textContent='HARIKA!';ti.style.color='#FFD700';m.textContent='Cok iyi!';}
-  else if(pct>=0.6){t.textContent='⭐';ti.textContent='IYI!';ti.style.color='#4FC3F7';m.textContent='Guzel oyun!';}
+  else if(pct>=0.8){t.textContent='🥇';ti.textContent='HARIKA!';  ti.style.color='#FFD700';m.textContent='Cok iyi!';}
+  else if(pct>=0.6){t.textContent='⭐';ti.textContent='IYI!';    ti.style.color='#4FC3F7';m.textContent='Guzel oyun!';}
   else if(pct>=0.4){t.textContent='💪';ti.textContent='DEVAM ET!';ti.style.color='#FF9800';m.textContent='Rovans ver!';}
-  else             {t.textContent='😅';ti.textContent='OLMADI!';ti.style.color='#FF5252';m.textContent='Bu sefer kaleci kazandi!';}
+  else             {t.textContent='😅';ti.textContent='OLMADI!'; ti.style.color='#FF5252';m.textContent='Bu sefer kaleci kazandi!';}
   document.getElementById('final').classList.add('show');
   gameActive=false;
   spawnC(W/2,H*0.35);
@@ -411,28 +413,28 @@ function resetGame(){
   document.getElementById('banner').style.display='';
   parts=[];confs=[];buildDots();
   if(ballMesh){ballMesh.position.set(0,BALL_R,0);ballAnim.on=false;}
-  charPlay(arda,'idle');
-  if(keeper){keeper.root.position.set(0,0,GZ+1.2);kAnim={phase:'idle',t:0,sx:0,tx:0};charPlay(keeper,'idle');}
+  playAnim(arda,'idle');
+  if(keeper){
+    keeper.root.position.set(0,0,GZ+1.0);
+    kAnim={phase:'idle',t:0,sx:0,tx:0};
+    playAnim(keeper,'idle');
+  }
 }
 window.resetGame=resetGame;
 
 window.shareResult=function(){
   const txt='Pusulabet Penalti: '+goals+'/'+TOTAL+' gol! @pusulasocial';
-  if(tg&&tg.openTelegramLink)tg.openTelegramLink('https://t.me/share/url?url=https://t.me/pusulabetgame_bot/penalti&text='+encodeURIComponent(txt));
-  else if(navigator.share)navigator.share({text:txt});
+  if(tg&&tg.openTelegramLink) tg.openTelegramLink('https://t.me/share/url?url=https://t.me/pusulabetgame_bot/penalti&text='+encodeURIComponent(txt));
+  else if(navigator.share) navigator.share({text:txt});
 };
 
 function startGame(){document.getElementById('start').style.display='none';gameActive=true;canShoot=true;}
 window.startGame=startGame;
 document.getElementById('btnStart')?.addEventListener('click',e=>{e.preventDefault();startGame();});
 
-// ── PARTIKUL ───────────────────────────────────────────────
-function spawnP(cx,cy){
-  for(let i=0;i<32;i++){const a=Math.random()*Math.PI*2,s=1.5+Math.random()*5;parts.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,decay:0.02+Math.random()*0.02,r:2+Math.random()*5,col:Math.random()<0.5?'#00E676':'#FFD700'});}
-}
-function spawnC(cx,cy){
-  for(let i=0;i<70;i++){const a=(Math.random()-0.5)*Math.PI*1.5-Math.PI/2,s=4+Math.random()*11;confs.push({x:cx,y:cy,vx:Math.cos(a)*s+(Math.random()-0.5)*4,vy:Math.sin(a)*s,w:4+Math.random()*8,h:3+Math.random()*5,rot:Math.random()*Math.PI*2,rotV:(Math.random()-0.5)*0.35,life:1,decay:0.008+Math.random()*0.008,col:CC[Math.floor(Math.random()*CC.length)]});}
-}
+// ── PARTIKUL ──
+function spawnP(cx,cy){for(let i=0;i<32;i++){const a=Math.random()*Math.PI*2,s=1.5+Math.random()*5;parts.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,decay:0.02+Math.random()*0.02,r:2+Math.random()*5,col:Math.random()<0.5?'#00E676':'#FFD700'});}}
+function spawnC(cx,cy){for(let i=0;i<70;i++){const a=(Math.random()-0.5)*Math.PI*1.5-Math.PI/2,s=4+Math.random()*11;confs.push({x:cx,y:cy,vx:Math.cos(a)*s+(Math.random()-0.5)*4,vy:Math.sin(a)*s,w:4+Math.random()*8,h:3+Math.random()*5,rot:Math.random()*Math.PI*2,rotV:(Math.random()-0.5)*0.35,life:1,decay:0.008+Math.random()*0.008,col:CC[Math.floor(Math.random()*CC.length)]});}}
 function drawFx(){
   fctx.clearRect(0,0,W,H);
   for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.18;p.life-=p.decay;if(p.life<=0){parts.splice(i,1);continue;}fctx.globalAlpha=p.life;fctx.fillStyle=p.col;fctx.beginPath();fctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);fctx.fill();}
@@ -440,20 +442,20 @@ function drawFx(){
   fctx.globalAlpha=1;
 }
 
-// ── INPUT ──────────────────────────────────────────────────
+// ── INPUT ──
 function buildDots(){const cont=document.getElementById('dots');cont.innerHTML='';for(let i=0;i<TOTAL;i++){const d=document.createElement('div');d.className='dot';d.id='dot-'+i;cont.appendChild(d);}}
 canvas.addEventListener('mousemove',e=>{if(gameActive&&canShoot)hover(e.clientX,e.clientY);});
 canvas.addEventListener('click',e=>{if(!gameActive||!canShoot)return;hover(e.clientX,e.clientY);if(hoverCell.r>=0)shoot(hoverCell.r,hoverCell.c);});
 canvas.addEventListener('touchstart',e=>{if(!gameActive||!canShoot)return;const t=e.touches[0];hover(t.clientX,t.clientY);if(hoverCell.r>=0){e.preventDefault();shoot(hoverCell.r,hoverCell.c);}},{passive:false});
 canvas.addEventListener('touchmove',e=>{if(gameActive&&canShoot)hover(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
 
-// ── ANA DONGU ──────────────────────────────────────────────
+// ── ANA DONGU ──
 let lastT=0;
 function loop(ts){
   const dt=Math.min((ts-lastT)/1000,0.05);lastT=ts;
 
-  charTick(arda,dt);
-  charTick(keeper,dt);
+  tickChar(arda,dt);
+  tickChar(keeper,dt);
 
   if(ballAnim.on&&ballMesh){
     ballAnim.t+=dt;
@@ -471,16 +473,16 @@ function loop(ts){
       kAnim.t+=dt;
       const u=Math.min(kAnim.t/0.42,1),e=easeOut(u);
       keeper.root.position.x=kAnim.sx+(kAnim.tx-kAnim.sx)*e;
-      keeper.root.position.y=Math.sin(u*Math.PI)*0.2;
+      keeper.root.position.y=Math.sin(u*Math.PI)*0.15;
       if(u>=1)kAnim.phase='hold';
     }else if(kAnim.phase==='return'){
       kAnim.t+=dt;
       const u=Math.min(kAnim.t/0.6,1),e=easeIO(u);
       keeper.root.position.x=kAnim.sx*(1-e);
       keeper.root.position.y=0;
-      if(u>=1){kAnim.phase='idle';keeper.root.position.set(0,0,GZ+1.2);}
+      if(u>=1){kAnim.phase='idle';keeper.root.position.set(0,0,GZ+1.0);}
     }else{
-      keeper.root.position.x=Math.sin(ts*0.0014)*0.05;
+      keeper.root.position.x=Math.sin(ts*0.0014)*0.04;
       keeper.root.position.y=0;
     }
   }
@@ -490,94 +492,131 @@ function loop(ts){
   requestAnimationFrame(loop);
 }
 
-// ── BOOT ───────────────────────────────────────────────────
+// ── BOOT ──
 const texLoader=new THREE.TextureLoader();
 texLoader.setCrossOrigin('anonymous');
 
 async function boot(){
   // Top
   try{
-    const bt=await new Promise((res,rej)=>texLoader.load(A.ball,res,undefined,rej));
+    const bt=await new Promise((res,rej)=>texLoader.load(BASE+'ball.png',res,undefined,rej));
     bt.colorSpace=THREE.SRGBColorSpace;
-    ballMesh=new THREE.Mesh(new THREE.SphereGeometry(BALL_R,32,32),new THREE.MeshStandardMaterial({map:bt,roughness:0.35,metalness:0.05}));
-    ballMesh.position.set(0,BALL_R,0);scene.add(ballMesh);
-  }catch(e){console.warn('Top yukleme hatasi');}
+    ballMesh=new THREE.Mesh(
+      new THREE.SphereGeometry(BALL_R,32,32),
+      new THREE.MeshStandardMaterial({map:bt,roughness:0.35,metalness:0.05})
+    );
+    ballMesh.position.set(0,BALL_R,0);
+    scene.add(ballMesh);
+  }catch(e){console.warn('Top yuklenemedi');}
 
-  // Tum GLB paralel yukle
-  const [aI,aK,kI,kDL,kDR,kSLL,kSLR,kStL,kStR]=await Promise.all([
-    loadGLB(A.arda_idle), loadGLB(A.arda_kick),
-    loadGLB(A.keeper_idle),
-    loadGLB(A.keeper_dive_left), loadGLB(A.keeper_dive_right),
-    loadGLB(A.keeper_save_ll), loadGLB(A.keeper_save_lr),
-    loadGLB(A.keeper_step_l), loadGLB(A.keeper_step_r),
+  // ── ARDA FBX ──
+  const [ardaIdle, ardaKick] = await Promise.all([
+    loadFBX(BASE+'arda/idle.fbx'),
+    loadFBX(BASE+'arda/kick.fbx'),
   ]);
 
-  // Log
-  const ns=['arda_idle','arda_kick','keeper_idle','keeper_dive_left','keeper_dive_right','keeper_save_ll','keeper_save_lr','keeper_step_l','keeper_step_r'];
-  [aI,aK,kI,kDL,kDR,kSLL,kSLR,kStL,kStR].forEach((g,i)=>{
-    console.log(`[GLB] ${ns[i]}: ${g?'OK ['+g.animations.map(a=>a.name||'?').join(',')+']':'HATA'}`);
+  if(ardaIdle||ardaKick){
+    const root=new THREE.Group();
+    root.rotation.y=Math.PI; // kameraya arkasiyla
+    root.renderOrder=10;
+    scene.add(root);
+    arda={root, models:{}, mixers:{}, actions:{}, current:''};
+
+    // Idle modeli
+    if(ardaIdle){
+      normalizeChar(ardaIdle, ARDA_TARGET_H);
+      ardaIdle.visible=true;
+      root.add(ardaIdle);
+      const mx=new THREE.AnimationMixer(ardaIdle);
+      const clip=ardaIdle.animations[0];
+      if(clip){
+        const act=mx.clipAction(clip);
+        act.setLoop(THREE.LoopRepeat,Infinity);
+        act.play();
+        arda.models.idle=ardaIdle;
+        arda.mixers.idle=mx;
+        arda.actions.idle=act;
+      }
+    }
+
+    // Kick modeli
+    if(ardaKick){
+      normalizeChar(ardaKick, ARDA_TARGET_H);
+      ardaKick.visible=false;
+      root.add(ardaKick);
+      const mx=new THREE.AnimationMixer(ardaKick);
+      const clip=ardaKick.animations[0];
+      if(clip){
+        const act=mx.clipAction(clip);
+        act.setLoop(THREE.LoopOnce,1);
+        act.clampWhenFinished=true;
+        arda.models.kick=ardaKick;
+        arda.mixers.kick=mx;
+        arda.actions.kick=act;
+      }
+    }
+
+    arda.current='idle';
+
+    // Arda pozisyonu — penalti noktasi onunde
+    root.position.set(0,0,1.0);
+    console.log('[Arda] hazir, actions:',Object.keys(arda.actions));
+  }
+
+  // ── KALECI FBX ──
+  const keeperFiles=[
+    ['idle',          BASE+'keeper/idle.fbx',           THREE.LoopRepeat],
+    ['dive_left',     BASE+'keeper/dive_left.fbx',      THREE.LoopOnce],
+    ['dive_right',    BASE+'keeper/dive_right.fbx',     THREE.LoopOnce],
+    ['save_low_left', BASE+'keeper/save_low_left.fbx',  THREE.LoopOnce],
+    ['save_low_right',BASE+'keeper/save_low_right.fbx', THREE.LoopOnce],
+    ['sidestep_left', BASE+'keeper/sidestep_left.fbx',  THREE.LoopOnce],
+    ['sidestep_right',BASE+'keeper/sidestep_right.fbx', THREE.LoopOnce],
+  ];
+
+  const kRoot=new THREE.Group();
+  kRoot.position.set(0,0,GZ+1.0);
+  kRoot.rotation.y=0;
+  kRoot.renderOrder=8;
+  scene.add(kRoot);
+  keeper={root:kRoot, models:{}, mixers:{}, actions:{}, current:''};
+
+  // Paralel yukle
+  const kLoaded=await Promise.all(keeperFiles.map(([,url])=>loadFBX(url)));
+
+  kLoaded.forEach((fbx,i)=>{
+    if(!fbx)return;
+    const[name,,loop]=keeperFiles[i];
+    normalizeChar(fbx, KEEPER_TARGET_H);
+    fbx.visible=(name==='idle'); // sadece idle baslangicta gorunur
+    kRoot.add(fbx);
+    const mx=new THREE.AnimationMixer(fbx);
+    const clip=fbx.animations[0];
+    if(clip){
+      const act=mx.clipAction(clip);
+      act.setLoop(loop,loop===THREE.LoopOnce?1:Infinity);
+      if(loop===THREE.LoopOnce) act.clampWhenFinished=true;
+      if(name==='idle') act.play();
+      keeper.models[name]=fbx;
+      keeper.mixers[name]=mx;
+      keeper.actions[name]=act;
+    }
   });
 
-  // ── ARDA ──
-  if(aI||aK){
-    const root=new THREE.Group();
-    root.position.set(0,0,0.8);root.rotation.y=Math.PI;root.renderOrder=10;
-    scene.add(root);
-    arda={root,scenes:{},mixers:{},actions:{},current:''};
-
-    // Idle — kendi GLB'sinden ayri scene
-    if(aI){
-      const d=charScene(aI,ARDA_H,'idle',THREE.LoopRepeat,false);
-      if(d){root.add(d.scn);arda.scenes.idle=d.scn;arda.mixers.idle=d.mx;arda.actions.idle=d.act;}
-    }
-
-    // Kick — kendi GLB'sinden ayri scene
-    if(aK){
-      const d=charScene(aK,ARDA_H,'kick',THREE.LoopOnce,false);
-      if(d){root.add(d.scn);arda.scenes.kick=d.scn;arda.mixers.kick=d.mx;arda.actions.kick=d.act;}
-    }
-
-    // Sadece idle goster
-    Object.values(arda.scenes).forEach(s=>s.visible=false);
-    if(arda.scenes.idle) arda.scenes.idle.visible=true;
-    arda.current='';
-    charPlay(arda,'idle');
-    console.log('[Arda] actions:',Object.keys(arda.actions));
-  }
-
-  // ── KALECI ──
-  if(!kI){console.error('keeper_idle zorunlu!');return;}
-  const kRoot=new THREE.Group();
-  kRoot.position.set(0,0,GZ+1.2);kRoot.rotation.y=0;kRoot.renderOrder=8;
-  scene.add(kRoot);
-  keeper={root:kRoot,scenes:{},mixers:{},actions:{},current:''};
-
-  const kDefs=[
-    [kI, 'idle',           THREE.LoopRepeat, true ],
-    [kDL,'dive_left',      THREE.LoopOnce,   false],
-    [kDR,'dive_right',     THREE.LoopOnce,   false],
-    [kSLL,'save_ll',       THREE.LoopOnce,   false],
-    [kSLR,'save_lr',       THREE.LoopOnce,   false],
-    [kStL,'sidestep_left', THREE.LoopOnce,   false],
-    [kStR,'sidestep_right',THREE.LoopOnce,   false],
-  ];
-  for(const[g,name,loop,vis]of kDefs){
-    const d=charScene(g,KEEPER_H,name,loop,vis);
-    if(d){kRoot.add(d.scn);keeper.scenes[name]=d.scn;keeper.mixers[name]=d.mx;keeper.actions[name]=d.act;}
-  }
-  // Tum scene'leri gizle, idle'i manuel goster
-  Object.values(keeper.scenes).forEach(s=>s.visible=false);
-  if(keeper.scenes.idle) keeper.scenes.idle.visible=true;
-  keeper.current=''; // bos birakmak charPlay'in ilk cagrisini gecmesini saglar
-  charPlay(keeper,'idle');
-  console.log('[Keeper] actions:',Object.keys(keeper.actions));
+  keeper.current='idle';
+  console.log('[Keeper] hazir, actions:',Object.keys(keeper.actions));
 
   // BG
   try{
-    const bgT=await new Promise((res,rej)=>texLoader.load(A.bg,res,undefined,rej));
+    const bgT=await new Promise((res,rej)=>texLoader.load(BASE+'bg.png',res,undefined,rej));
     bgT.colorSpace=THREE.SRGBColorSpace;
-    const bgM=new THREE.Mesh(new THREE.PlaneGeometry(30,20),new THREE.MeshBasicMaterial({map:bgT,depthWrite:false,depthTest:false}));
-    bgM.position.set(0,1.6,-12);bgM.renderOrder=-500;scene.add(bgM);
+    const bgM=new THREE.Mesh(
+      new THREE.PlaneGeometry(30,20),
+      new THREE.MeshBasicMaterial({map:bgT,depthWrite:false,depthTest:false})
+    );
+    bgM.position.set(0,1.6,-12);
+    bgM.renderOrder=-500;
+    scene.add(bgM);
   }catch(e){console.warn('BG yuklenemedi');}
 
   ready=true;
