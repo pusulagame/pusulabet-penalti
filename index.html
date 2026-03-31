@@ -12,8 +12,12 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
 #wrap{position:relative;width:100vw;height:100dvh;}
 #c{display:block;width:100vw;height:100dvh;touch-action:none;}
 #fx{position:absolute;inset:0;pointer-events:none;z-index:5;}
-#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);z-index:20;color:#fff;font-family:'Bebas Neue',cursive;letter-spacing:3px;font-size:22px;}
+#loading{position:fixed;left:0;right:0;top:0;z-index:20;color:#fff;font-family:'Bebas Neue',cursive;letter-spacing:3px;font-size:18px;padding:14px 16px 12px;background:linear-gradient(to bottom,rgba(0,0,0,.78),rgba(0,0,0,.22));backdrop-filter:blur(6px);}
 #loading.hide{display:none;}
+.ldRow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
+.ldPct{opacity:.9;font-size:16px;letter-spacing:2px;}
+.ldBar{margin-top:10px;height:10px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;border:1px solid rgba(255,255,255,.14);}
+.ldFill{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#FF6B00,#FFD700);box-shadow:0 0 18px rgba(255,215,0,.35);transition:width .2s ease;}
 #ui{position:fixed;inset:0;pointer-events:none;z-index:10;}
 #hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:14px 20px 0;background:linear-gradient(to bottom,rgba(0,0,0,0.75),transparent);}
 .hb{text-align:center;}
@@ -62,7 +66,13 @@ body{background:#1a4a20;overflow:hidden;height:100dvh;width:100vw;font-family:'R
   <canvas id="c"></canvas>
   <canvas id="fx"></canvas>
 </div>
-<div id="loading">YÜKLENİYOR...</div>
+<div id="loading">
+  <div class="ldRow">
+    <div id="ldTxt">YÜKLENİYOR</div>
+    <div class="ldPct" id="ldPct">0%</div>
+  </div>
+  <div class="ldBar"><div class="ldFill" id="ldFill"></div></div>
+</div>
 <div id="ui">
   <div id="hud">
     <div class="hb"><span class="hl">GOL</span><div class="hv g" id="sGoal">0</div></div>
@@ -143,11 +153,42 @@ const CC=['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'];
 let tg=null;
 try{tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch(e){}
 
+// ── LOADING UI (progress bar) ──
+const ld=document.getElementById('loading');
+const ldFill=document.getElementById('ldFill');
+const ldPct=document.getElementById('ldPct');
+const btnStart=document.getElementById('btnStart');
+if(btnStart){
+  btnStart.disabled=true;
+  btnStart.style.opacity='0.65';
+  btnStart.textContent='YÜKLENİYOR...';
+}
+
 // ── THREE.JS ──
 const canvas=document.getElementById('c');
 const fx=document.getElementById('fx');
 const fctx=fx.getContext('2d');
 let W=innerWidth,H=innerHeight;
+
+const manager = new THREE.LoadingManager();
+function setLoadProgress(p){
+  const pct=Math.round(clamp(p,0,1)*100);
+  if(ldPct) ldPct.textContent=pct+'%';
+  if(ldFill) ldFill.style.width=pct+'%';
+  if(btnStart) btnStart.textContent = pct>=100 ? '⚽ BASLAT' : ('YÜKLENİYOR... '+pct+'%');
+  if(pct>=100){
+    if(btnStart){
+      btnStart.disabled=false;
+      btnStart.style.opacity='';
+      btnStart.textContent='⚽ BASLAT';
+    }
+    if(ld) ld.classList.add('hide');
+  }
+}
+manager.onProgress=(_url, itemsLoaded, itemsTotal)=>{
+  if(itemsTotal>0) setLoadProgress(itemsLoaded/itemsTotal);
+};
+manager.onLoad=()=>setLoadProgress(1);
 
 const scene=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(42,W/H,0.1,220);
@@ -163,10 +204,10 @@ const CAMERA_PRESETS = {
   },
   mobile: {
     // Mobilde sahne fazla uzak gorunmesin: kamerayi yaklastir + FOV'i daralt
-    pos: new THREE.Vector3(0, 1.58, 7.35),
-    look: new THREE.Vector3(0, 1.22, GZ + 2.05),
-    fovPortrait: 40,
-    fovLandscape: 46,
+    pos: new THREE.Vector3(0, 1.56, 6.85),
+    look: new THREE.Vector3(0, 1.22, GZ + 2.15),
+    fovPortrait: 38,
+    fovLandscape: 44,
   }
 };
 
@@ -337,7 +378,7 @@ function getAimFromPointer(cx,cy){
 }
 
 // ── FBX YUKLEME ──
-const fbxLoader=new FBXLoader();
+const fbxLoader=new FBXLoader(manager);
 
 function loadFBX(url){
   return new Promise(resolve=>{
@@ -583,7 +624,11 @@ window.shareResult=function(){
 
 function startGame(){document.getElementById('start').style.display='none';gameActive=true;canShoot=true;}
 window.startGame=startGame;
-document.getElementById('btnStart')?.addEventListener('click',e=>{e.preventDefault();startGame();});
+document.getElementById('btnStart')?.addEventListener('click',e=>{
+  e.preventDefault();
+  if(!ready) return;
+  startGame();
+});
 
 // ── PARTIKUL ──
 function spawnP(cx,cy){for(let i=0;i<32;i++){const a=Math.random()*Math.PI*2,s=1.5+Math.random()*5;parts.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,decay:0.02+Math.random()*0.02,r:2+Math.random()*5,col:Math.random()<0.5?'#00E676':'#FFD700'});}}
@@ -672,7 +717,7 @@ function loop(ts){
 }
 
 // ── BOOT ──
-const texLoader=new THREE.TextureLoader();
+const texLoader=new THREE.TextureLoader(manager);
 texLoader.setCrossOrigin('anonymous');
 
 async function boot(){
@@ -904,8 +949,11 @@ async function boot(){
   }
 
   ready=true;
-  const ld=document.getElementById('loading');
-  if(ld) ld.classList.add('hide');
+  // Yukleme bar'i LoadingManager ile kapanir; burasi sadece fallback
+  if(!manager || !manager.isLoading){
+    const _ld=document.getElementById('loading');
+    if(_ld) _ld.classList.add('hide');
+  }
   buildDots();
   console.log('[boot] Hazir!');
 }
