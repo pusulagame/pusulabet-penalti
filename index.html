@@ -118,8 +118,15 @@ const ASSET = (p)=>new URL(p, BASE).href;
 // ── SABITLER ──
 const TOTAL=5, BALL_R=0.11;
 // Gercek olculer: kale 7.32m x 2.44m, penalti 11m
-const GW=7.32, GH=2.44, GZ=-11;
-// Kale secim grid'i: kale agzi alt cizgisi (y=0'a daha yakin olmali). Yukarida kalmasin diye asagi cekildi.
+const GW=7.32, GH=2.44;
+// Goal line Z (world). Penalti noktasi 11m onde (kamera tarafina dogru).
+const GZ=-16;
+const PENALTY_Z = GZ + 11; // = -5
+// Goal modelinin BG ile cakismamasi icin biraz geride durmasi
+const GOAL_MODEL_Z = GZ - 0.45;
+// Hedef/impact duzlemi: kale icinde, kalecinin arkasinda
+const TARGET_Z_WORLD = GZ + 0.02;
+// Fallback: goal fbx yoksa secim rect'i icin y offset
 const GOAL_YOF=0.22;
 // FBX Mixamo modelleri genellikle 100x buyuk gelir (cm cinsinden)
 // normalizeChar ile hedef boya scale edilir
@@ -145,8 +152,8 @@ let W=innerWidth,H=innerHeight;
 const scene=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(42,W/H,0.1,220);
 // Kompozisyon: Arda alt-orta, kale + kaleci net, mobil dikeyde dengeli
-cam.position.set(0,1.55,8.2);
-cam.lookAt(0,1.25,-8.6);
+cam.position.set(0,1.65,9.6);
+cam.lookAt(0,1.25,GZ+2.2);
 
 const rdr=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
 rdr.setPixelRatio(Math.min(devicePixelRatio,1.5));
@@ -215,17 +222,16 @@ const gnd=new THREE.Mesh(
 gnd.rotation.x=-Math.PI/2;
 scene.add(gnd);
 
-// Penalti noktasi
+// Penalti noktasi (world-space: kale merkezinden 11m)
 const wm=new THREE.MeshBasicMaterial({color:0xffffff});
 const sp=new THREE.Mesh(new THREE.CircleGeometry(0.22,32),wm);
-sp.rotation.x=-Math.PI/2;sp.position.set(0,0.02,0);scene.add(sp);
+sp.rotation.x=-Math.PI/2;sp.position.set(0,0.02,PENALTY_Z);scene.add(sp);
 const ln=new THREE.Mesh(new THREE.PlaneGeometry(9.15,0.12),wm);
-ln.rotation.x=-Math.PI/2;ln.position.set(0,0.02,-5.5);scene.add(ln);
+ln.rotation.x=-Math.PI/2;ln.position.set(0,0.02,PENALTY_Z-5.5);scene.add(ln);
 
 // Kale agzi rect'i (world) — goal.fbx yuklenince bbox'tan guncellenir
 let goalRect={xMin:-GW/2,xMax:GW/2,yMin:GOAL_YOF,yMax:GOAL_YOF+GH,z:GZ};
-// Target plane'in world Z'i (goalun icinde, kaleci arkasi) — sabit tutuyoruz
-const TARGET_Z_WORLD = GZ + 0.02;
+// Target plane'in world Z'i (goalun icinde, kaleci arkasi) — sabit
 // Goal local uzayinda hedef rect (hiG goalObj child olunca local yerlesim buradan gelir)
 let goalLocalRect={xMin:-GW/2,xMax:GW/2,yMin:0,yMax:GH,z:0};
 
@@ -381,28 +387,27 @@ function shoot(row,col){
   setHi(-1,-1,0);
 
   const target=worldCell(row,col);
-  const rand=Math.random();
-  let side;
-  if(col===0)      side=rand<0.5?'left':(rand<0.75?'center':'right');
-  else if(col===2) side=rand<0.5?'right':(rand<0.75?'center':'left');
-  else             side=rand<0.33?'left':(rand<0.66?'center':'right');
+  // Kalecinin reaksiyonu topun hedefinden türetilir (nedensel bag)
+  const goalCx=(goalRect.xMin+goalRect.xMax)/2;
+  const dx=target.x-goalCx;
+  const halfW=(goalRect.xMax-goalRect.xMin)/2;
+  const reachX=Math.max(0.6,halfW-0.55); // kaleci erisim limiti
+  const diveX=goalCx+Math.max(-reachX,Math.min(reachX,dx));
+  let side='center';
+  if(dx<-0.35) side='left';
+  else if(dx>0.35) side='right';
 
   const cm={0:'left',1:'center',2:'right'};
   let saved=false;
-  if(side===cm[col]){
-    // Kaleci dogru tarafi sezdi: kurtaris ihtimali yuksek
-    if(row===0&&col!==1) saved=Math.random()<0.45; // ust kose
-    else if(row===0)     saved=Math.random()<0.55; // ust orta
-    else                 saved=Math.random()<0.75; // alt/orta
-  } else {
-    // Yanlis tarafa gitti ama bazen reaksiyon/temas olur
-    saved=Math.random()<0.15;
-  }
+  // Kurtaris olasiligi: hedef erisim icindeyse daha yuksek, disindaysa dusuk ama yine o yone dener
+  const withinReach=Math.abs(dx)<=reachX+0.08;
+  const base=withinReach ? 0.62 : 0.18;
+  const topBonus=(row===0)?-0.10:0; // ust sutlar daha zor
+  saved=Math.random()<(base+topBonus);
 
   // Kaleci
   if(keeper){
-    const sideX={left:-GW*0.28,center:0,right:GW*0.28};
-    kAnim={phase:'dive',t:0,sx:keeper.root.position.x,tx:sideX[side]};
+    kAnim={phase:'dive',t:0,sx:keeper.root.position.x,tx:diveX};
     playAnim(keeper, pickKAnim(side,row));
   }
 
@@ -447,7 +452,7 @@ function showRes(ok){
   ov.classList.add('show');
   setTimeout(()=>{
     ov.classList.remove('show');
-    if(ballMesh){ballMesh.position.set(0,BALL_R,0);ballAnim.on=false;}
+    if(ballMesh){ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);ballAnim.on=false;}
     playAnim(arda,'idle');
     if(keeper){
       kAnim={phase:'return',t:0,sx:keeper.root.position.x,tx:0};
@@ -481,7 +486,7 @@ function resetGame(){
   document.getElementById('final').classList.remove('show');
   document.getElementById('banner').style.display='';
   parts=[];confs=[];buildDots();
-  if(ballMesh){ballMesh.position.set(0,BALL_R,0);ballAnim.on=false;}
+  if(ballMesh){ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);ballAnim.on=false;}
   playAnim(arda,'idle');
   if(keeper){
     keeper.root.position.set(0,0,GZ+0.55);
@@ -599,7 +604,7 @@ async function boot(){
       new THREE.SphereGeometry(BALL_R,32,32),
       new THREE.MeshStandardMaterial({map:bt,roughness:0.35,metalness:0.05})
     );
-    ballMesh.position.set(0,BALL_R,0.08);
+    ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);
     scene.add(ballMesh);
   }catch(e){console.error('[Ball.png] Yuklenemedi',e);}
 
@@ -616,7 +621,7 @@ async function boot(){
         const s=(BALL_R*2)/maxD;
         bfbx.scale.setScalar(s);
       }
-      bfbx.position.set(0,BALL_R,0.08);
+      bfbx.position.set(0,BALL_R,PENALTY_Z+0.08);
       scene.add(bfbx);
       ballObj=bfbx;
       // Animasyon kodu ballMesh uzerinden calisiyor; FBX geldiyse onu aktif top yap
@@ -678,7 +683,8 @@ async function boot(){
     arda.current='idle';
 
     // Arda pozisyonu — penalti noktasi onunde
-    root.position.set(0.15,0,1.45);
+    // Arda topun arkasinda (kamera tarafinda), penalti setup hissi: topun 1.6m gerisinde
+    root.position.set(0.15,0,PENALTY_Z+1.60);
     console.log('[Arda] hazir, actions:',Object.keys(arda.actions));
   }
 
@@ -725,6 +731,21 @@ async function boot(){
   keeper.current='idle';
   console.log('[Keeper] hazir, actions:',Object.keys(keeper.actions));
 
+  // Kaleciyi zemine oturt (pivot/foot problemi varsa bbox.min.y ile düzelt)
+  try{
+    const kb=new THREE.Box3().setFromObject(kRoot);
+    kRoot.position.y-=kb.min.y;
+    // Bar altinda kalsin: fazla uzunsa scale down
+    const kh=kb.max.y-kb.min.y;
+    if(kh>GH*0.92){
+      const s=(GH*0.90)/kh;
+      kRoot.scale.multiplyScalar(s);
+      kRoot.position.y=0;
+    }
+  }catch(e){
+    console.warn('[Keeper] ground/scale ayari yapilamadi',e?.message||e);
+  }
+
   // GOAL FBX (opsiyonel)
   try{
     // Yeni yapida kale modeli assets/goal/ altinda
@@ -740,8 +761,13 @@ async function boot(){
         const s=Math.min(sx,sy);
         gfbx.scale.setScalar(s);
       }
-      // BG icinde kale zaten gorundugu icin 3D kale biraz geride dursun (öne gelmis hissi vermesin)
-      gfbx.position.set(0,GOAL_YOF,GZ-0.45);
+      // Goal modeli: zemine oturt ve goal line'a hizala
+      gfbx.position.set(0,0,GOAL_MODEL_Z);
+      gfbx.updateMatrixWorld(true);
+      const bGround=new THREE.Box3().setFromObject(gfbx);
+      // Zemine oturt (minY = 0)
+      gfbx.position.y-=bGround.min.y;
+      gfbx.updateMatrixWorld(true);
       gfbx.renderOrder=2;
       scene.add(gfbx);
       goalObj=gfbx;
