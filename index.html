@@ -777,19 +777,49 @@ function showFinal(){
   document.getElementById('final').classList.add('show');
   gameActive=false;
   spawnC(W/2,H*0.35);
-  if(tg){
+
+  const score = goalsHud + '/' + TOTAL;
+  const tgUser = tg?.initDataUnsafe?.user;
+  const tgId   = String(tgUser?.id || '');
+  const tgName = tgUser?.username || tgUser?.first_name || '';
+
+  const payload = JSON.stringify({
+    game: 'penalty',
+    pusulabet_username: (pusulabetUsername || '').trim(),
+    telegram_id: tgId,
+    telegram_kullanici: tgName,
+    score,
+    goals: goalsHud,
+    won,
+    kazandi: won ? 'EVET' : 'HAYIR',
+    total: TOTAL
+  });
+
+  // 1) Önce sendData ile bot'a gönder (Mini App bot üzerinden açılmışsa çalışır)
+  let sentViaTelegram = false;
+  if(tg && tg.sendData){
     try{
-      const score = goalsHud + '/' + TOTAL;
-      tg.sendData(JSON.stringify({
-        game:'penalty',
-        pusulabet_username: (pusulabetUsername || '').trim(),
-        telegram_id: String(tg?.initDataUnsafe?.user?.id || ''),
-        score,
-        goals: goalsHud,
-        won,
-        total: TOTAL
-      }));
-    }catch(e){console.warn('sendData',e);}
+      tg.sendData(payload);
+      sentViaTelegram = true;
+      console.log('[sendData] gönderildi');
+    }catch(e){
+      console.warn('[sendData] hata:', e);
+    }
+  }
+
+  // 2) Her durumda HTTP fallback ile de gönder (sendData çalışmasa bile kayıt düşsün)
+  const BOT_API = 'http://localhost:8484/api/result';
+  try{
+    fetch(BOT_API, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: payload
+    })
+    .then(r=>r.json())
+    .then(d=>console.log('[api/result]', d))
+    .catch(e=>console.warn('[api/result] hata:', e));
+  }catch(e){
+    console.warn('[api/result] fetch hata:', e);
   }
 }
 
