@@ -114,13 +114,17 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // index.html'nin bulunduğu dizini al, sonuna assets/ ekle
 // Örnek: https://pusulagame.github.io/pusulabet-penalti/ → .../assets/
+// jsDelivr CDN — GitHub Pages'den çok daha hızlı, mobilde kasma azalır
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/pusulagame/pusulabet-penalti@main/assets/';
+
 const _base = (()=>{
-  const p = window.location.pathname;          // /pusulabet-penalti/
+  const p = window.location.pathname;
   const dir = p.endsWith('/') ? p : p.substring(0, p.lastIndexOf('/') + 1);
   return window.location.origin + dir + 'assets/';
 })();
 
-function asset(file){ return _base + file; }
+// CDN öncelikli
+function asset(file){ return CDN_BASE + file; }
 
 const CFG = {
   ASSETS: {
@@ -296,7 +300,8 @@ addEventListener('resize', size);
 const DIST      = 11;
 const GW        = 11.5;
 const GH        = 3.0;
-const GOAL_YMIN = 1.8;
+const GOAL_YMIN = 0.0;   // Kale alt çizgisi zemin seviyesinde (y=0)
+const GOAL_YOFF = 1.8;   // Kale yükseklik offset — sadece hücre hesabında kullanılır
 const GZ        = -DIST;
 const BALL_R    = 0.11;
 
@@ -353,7 +358,7 @@ const hitPt     = new THREE.Vector3();
 
 function worldFromCell(row, col) {
   const cw=GW/3, ch=GH/3;
-  return new THREE.Vector3(-GW/2+cw*(col+0.5), GOAL_YMIN+ch*((2-row)+0.5), GZ+0.02);
+  return new THREE.Vector3(-GW/2+cw*(col+0.5), GOAL_YOFF+ch*((2-row)+0.5), GZ+0.02);
 }
 
 let hoverCell = {r:-1, c:-1};
@@ -366,7 +371,7 @@ function buildHiMeshes() {
   const mat = new THREE.MeshBasicMaterial({color:0xffd700,transparent:true,opacity:0,depthWrite:false});
   for(let r=0;r<3;r++) for(let c=0;c<3;c++){
     const m=new THREE.Mesh(new THREE.PlaneGeometry(cw-0.12,ch-0.12),mat.clone());
-    m.position.set(-GW/2+cw*(c+0.5),GOAL_YMIN+ch*(2-r)+ch/2,GZ+0.04);
+    m.position.set(-GW/2+cw*(c+0.5),GOAL_YOFF+ch*(2-r)+ch/2,GZ+0.04);
     m.userData={r,c};
     hiGroup.add(m);
   }
@@ -412,10 +417,10 @@ function updateHover(clientX,clientY){
   ndc.x=(clientX/W)*2-1; ndc.y=-(clientY/H)*2+1;
   raycaster.setFromCamera(ndc,camera);
   if(!raycaster.ray.intersectPlane(goalPlane,hitPt)){setHiOpacity(-1,-1,0);hoverCell={r:-1,c:-1};return;}
-  if(hitPt.x<-GW/2||hitPt.x>GW/2||hitPt.y<GOAL_YMIN||hitPt.y>GOAL_YMIN+GH){setHiOpacity(-1,-1,0);hoverCell={r:-1,c:-1};return;}
+  if(hitPt.x<-GW/2||hitPt.x>GW/2||hitPt.y<GOAL_YOFF||hitPt.y>GOAL_YOFF+GH){setHiOpacity(-1,-1,0);hoverCell={r:-1,c:-1};return;}
   const cw=GW/3,ch=GH/3;
   const c=Math.min(2,Math.max(0,Math.floor((hitPt.x+GW/2)/cw)));
-  const r=2-Math.min(2,Math.max(0,Math.floor((hitPt.y-GOAL_YMIN)/ch)));
+  const r=2-Math.min(2,Math.max(0,Math.floor((hitPt.y-GOAL_YOFF)/ch)));
   hoverCell={r,c}; setHiOpacity(r,c,0.28);
 }
 
@@ -494,7 +499,6 @@ function showResult(isGoal){
     keeperFadeTo('idle', 0.5);
   },1600);
 }
-
 function resetRoundVisuals(){
   if(!assetsReady)return;
   ballMesh.position.set(0,BALL_R,0);
@@ -505,7 +509,7 @@ function resetRoundVisuals(){
 function resetPositions(){
   resetRoundVisuals();
   if(ardaRoot){ ardaRoot.position.set(0,0,0.55); ardaRoot.rotation.set(0,Math.PI,0); }
-  if(keeperRoot){ keeperRoot.position.set(0,GOAL_YMIN,GZ+0.35); keeperRoot.rotation.set(0,0,0); }
+  if(keeperRoot){ keeperRoot.position.set(0,0,GZ+0.35); keeperRoot.rotation.set(0,0,0); }
   keeperFadeTo('idle', 0.1);
   kState={phase:'idle',t:0,sx:0,tx:0,srot:0,trot:0,saved:false};
 }
@@ -632,16 +636,16 @@ function loop(ts){
     const T=0.42, u=Math.min(kState.t/T,1), e=easeOutCubic(u);
     keeperRoot.position.x=kState.sx+(kState.tx-kState.sx)*e;
     keeperRoot.rotation.z=kState.srot+(kState.trot-kState.srot)*e;
-    keeperRoot.position.y=GOAL_YMIN+Math.sin(u*Math.PI)*0.18*e;
+    keeperRoot.position.y=Math.sin(u*Math.PI)*0.25*e; // zemin=0, dalışta hafif yüksel
     if(u>=1) kState.phase='hold';
 
   } else if(kState.phase==='hold'){
     kState.t+=dt;
     if(kState.saved){
-      keeperRoot.position.y=GOAL_YMIN+0.1;
+      keeperRoot.position.y=0.1;
     } else {
       const sag=Math.min(kState.t/0.35,1);
-      keeperRoot.position.y=GOAL_YMIN+0.18*(1-sag);
+      keeperRoot.position.y=0.18*(1-sag);
     }
 
   } else if(kState.phase==='return'){
@@ -649,19 +653,19 @@ function loop(ts){
     const T=0.55, u=Math.min(kState.t/T,1), e=easeInOut(u);
     keeperRoot.position.x=kState.sx*(1-e);
     keeperRoot.rotation.z=kState.srot*(1-e);
-    keeperRoot.position.y=GOAL_YMIN;
+    keeperRoot.position.y=0;
     if(u>=1){
       kState.phase='idle';
-      keeperRoot.position.set(0,GOAL_YMIN,GZ+0.35);
+      keeperRoot.position.set(0,0,GZ+0.35);
       keeperRoot.rotation.set(0,0,0);
       if(shots>=TOTAL) setTimeout(showFinal,80);
       else{canShoot=true;document.getElementById('banner').style.display='';}
     }
 
   } else {
-    // idle
+    // idle — hafif sallanma
     keeperRoot.position.x=Math.sin(ts*0.0014)*0.05;
-    keeperRoot.position.y=GOAL_YMIN;
+    keeperRoot.position.y=0;
   }
 
   renderer.render(scene,camera); drawFx();
@@ -775,13 +779,14 @@ async function boot(){
     // Kaleci kurulumu
     // ——————————————————————————————
     const keeperIdleScene = keeperIdleGltf.scene;
-    normalizeGLB(keeperIdleScene, CFG.KEEPER_HEIGHT);
+  CFG.KEEPER_HEIGHT = 2.20;  // daha büyük kaleci
+  normalizeGLB(keeperIdleScene, CFG.KEEPER_HEIGHT);
     keeperIdleScene.traverse(c=>{ if(c.isMesh){ c.castShadow=false; c.receiveShadow=false; } });
 
     keeperRoot=new THREE.Group();
     keeperRoot.add(keeperIdleScene);
-    keeperRoot.position.set(0,GOAL_YMIN,GZ+0.35);
-    keeperRoot.rotation.y=0; // Mixamo +Z → kameraya bakıyor
+    keeperRoot.position.set(0, 0, GZ+0.35); // y=0: ayaklar zeminde
+    keeperRoot.rotation.y=0;
     keeperRoot.renderOrder=8;
     scene.add(keeperRoot);
 
