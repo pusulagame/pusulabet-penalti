@@ -756,13 +756,15 @@ function showRes(ok){
 }
 
 function showFinal(){
-  const pct=goals/TOTAL;
+  // HUD tek kaynak: global goals ile tutarsizlik olmasin
+  const goalsHud = parseInt(document.getElementById('sGoal')?.textContent || '0', 10) || goals;
+  const pct=goalsHud/TOTAL;
   const t=document.getElementById('fTrophy');
   const ti=document.getElementById('fTitle');
   const m=document.getElementById('fMsg');
   const fs=document.getElementById('fScore');
-  if(fs) fs.textContent=goals+'/'+TOTAL+' GOL';
-  const won = goals >= 3;
+  if(fs) fs.textContent=goalsHud+'/'+TOTAL+' GOL';
+  const won = goalsHud >= 3;
   if(won){
     if(t) t.textContent = '';
     if(ti){ ti.textContent = 'KAZANDIN!'; ti.style.color = '#00E676'; }
@@ -777,17 +779,17 @@ function showFinal(){
   spawnC(W/2,H*0.35);
   if(tg){
     try{
-      const score = goals + '/' + TOTAL;
+      const score = goalsHud + '/' + TOTAL;
       tg.sendData(JSON.stringify({
         game:'penalty',
-        pusulabet_username: pusulabetUsername || '',
+        pusulabet_username: (pusulabetUsername || '').trim(),
         telegram_id: String(tg?.initDataUnsafe?.user?.id || ''),
         score,
-        goals,
+        goals: goalsHud,
         won,
         total: TOTAL
       }));
-    }catch(e){}
+    }catch(e){console.warn('sendData',e);}
   }
 }
 
