@@ -126,6 +126,8 @@ const PENALTY_Z = GZ + 11; // = -5
 const GOAL_MODEL_Z = GZ - 0.45;
 // Hedef/impact duzlemi: kale icinde, kalecinin arkasinda
 const TARGET_Z_WORLD = GZ + 0.02;
+// Kaleci baslangic (her zaman kale merkezi, teleport/sliding yok)
+const KEEPER_Z = GZ + 0.55;
 // Fallback: goal fbx yoksa secim rect'i icin y offset
 const GOAL_YOF=0.22;
 // FBX Mixamo modelleri genellikle 100x buyuk gelir (cm cinsinden)
@@ -402,7 +404,7 @@ let ballMesh=null;
 let goals=0,misses=0,shots=0,gameActive=false,canShoot=true,ready=false;
 let parts=[],confs=[];
 let ballAnim={on:false,t:0,dur:0.55,p0:null,p1:null,p2:null};
-let kAnim={phase:'idle',t:0,sx:0,tx:0,side:'center',yN:0};
+let kAnim={phase:'idle',t:0};
 const K_REACT_DELAY=0.14;
 const PRE_SHOT_DELAY=1.0;      // hedef secildikten sonra bekleme (s)
 const KICK_CONTACT_DELAY=0.26; // kick animasyonunda topa temas (s)
@@ -410,6 +412,8 @@ let shotTarget=null;
 const DEBUG_SHOT=false;
 let pendingShotTimer=null;
 let pendingKickTimer=null;
+const MAX_DIVE_DISTANCE = 1.85; // metre (gercekci dalis/uzanma)
+const KEEPER_DIVE_DUR = 0.42;
 
 function easeOut(t){return 1-Math.pow(1-t,3);}
 function easeIO(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
@@ -427,13 +431,22 @@ function updateAimVisual(cx,cy){
   canvas.style.cursor='crosshair';
 }
 
-function pickKAnim(side,yN){
-  const high=yN>0.66;
-  const low=yN<0.33;
-  if(high) return side==='left'?'dive_left':(side==='right'?'dive_right':(Math.random()<0.5?'dive_left':'dive_right'));
-  if(low)  return side==='left'?'save_low_left':(side==='right'?'save_low_right':'save_low_left');
-  if(side==='center') return Math.random()<0.5?'sidestep_left':'sidestep_right';
-  return side==='left'?'dive_left':'dive_right';
+function pickKAnimFromDir(dir){
+  // Tek kaynak: top hedefinden uretilen yon vektoru
+  const side = (dir.x<-0.06) ? 'left' : (dir.x>0.06 ? 'right' : 'center');
+  const high = dir.y > 0.30;
+  const low  = dir.y < 0.08;
+  if(low){
+    if(side==='right') return 'save_low_right';
+    return 'save_low_left';
+  }
+  if(high){
+    if(side==='right') return 'dive_right';
+    return 'dive_left';
+  }
+  if(side==='right') return 'dive_right';
+  if(side==='left') return 'dive_left';
+  return 'sidestep_left';
 }
 
 function shootAt(worldTarget, localTarget){
@@ -452,22 +465,27 @@ function shootAt(worldTarget, localTarget){
   const target=worldTarget ? worldTarget.clone() : (goalObj ? goalObj.localToWorld(lp.clone()) : new THREE.Vector3(lp.x, lp.y+GOAL_YOF, TARGET_Z_WORLD));
   shotTarget=target.clone();
 
-  const goalCx=(goalRect.xMin+goalRect.xMax)/2;
-  const dx=target.x-goalCx;
-  const halfW=(goalRect.xMax-goalRect.xMin)/2;
-  const reachX=Math.max(0.6,halfW-0.55);
-  const diveX=goalCx+clamp(dx,-reachX,reachX);
-  let side='center';
-  if(dx<-0.35) side='left';
-  else if(dx>0.35) side='right';
+  // Kaleci fizik/yon hesaplari (tek kaynak: top hedefi)
+  const goalkeeperStart = new THREE.Vector3(0,0,KEEPER_Z);
+  const diveDir = new THREE.Vector3().subVectors(target, goalkeeperStart).normalize();
+  const distToBall = goalkeeperStart.distanceTo(target);
+  const alpha = clamp(MAX_DIVE_DISTANCE / Math.max(0.001, distToBall), 0, 1); // 1: yetisir, <1: yetismez
 
-  const yN=(lp.y-goalLocalRect.yMin)/Math.max(0.01,(goalLocalRect.yMax-goalLocalRect.yMin));
+  // Hedef pozisyon: yon vektorunden turetilen tek hedef (pre-position yok, sadece animasyon icinde gider)
+  const keeperTarget = new THREE.Vector3().lerpVectors(goalkeeperStart, target, alpha);
+  keeperTarget.z = KEEPER_Z;
 
-  // save probability: reachable + height
-  const withinReach=Math.abs(dx)<=reachX+0.08;
-  const base=withinReach ? 0.60 : 0.16;
-  const highPenalty=yN>0.66 ? -0.12 : 0;
-  const saved=Math.random()<(base+highPenalty);
+  // Kale icinde clamp (erisim + fizik)
+  const maxX = GW/2 - 0.15;
+  const maxY = GH * 0.92;
+  keeperTarget.x = clamp(keeperTarget.x, -maxX, maxX);
+  keeperTarget.y = clamp(keeperTarget.y, 0, maxY);
+
+  // Kayit: bazen yetisememeli (alpha < 1), yuksek sutlarda sans azalir
+  const heightPenalty = target.y > (GH*0.72) ? 0.14 : 0;
+  const reachiness = clamp(alpha, 0, 1);
+  const saveProb = clamp(0.10 + (0.62*reachiness) - heightPenalty, 0.05, 0.72);
+  const saved = Math.random() < saveProb;
 
   // Eski timer'lari temizle (spam tap/click)
   if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
@@ -479,11 +497,18 @@ function shootAt(worldTarget, localTarget){
 
     // 2) kick temas aninda topu firlat + kaleciyi reaksiyona sok
     pendingKickTimer=setTimeout(()=>{
-      // keeper her zaman ortadan baslar (teleport yok)
+      // keeper her zaman ortadan baslar (pre-position/sliding yok)
       if(keeper){
-        keeper.root.position.x=0;
-        keeper.root.position.y=0;
-        kAnim={phase:'react',t:0,sx:0,tx:diveX,side,yN};
+        keeper.root.position.set(0,0,KEEPER_Z);
+        kAnim={
+          phase:'react',
+          t:0,
+          start:goalkeeperStart.clone(),
+          target:keeperTarget.clone(),
+          dir:diveDir.clone(),
+          anim:pickKAnimFromDir(diveDir),
+          dur:KEEPER_DIVE_DUR,
+        };
       }
 
       const p0=ballMesh.position.clone();
@@ -532,7 +557,7 @@ function showRes(ok){
     if(ballMesh){ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);ballAnim.on=false;}
     playAnim(arda,'idle');
     if(keeper){
-      kAnim={phase:'return',t:0,sx:keeper.root.position.x,tx:0};
+      kAnim={phase:'return',t:0,start:keeper.root.position.clone(),target:new THREE.Vector3(0,0,KEEPER_Z),dur:0.6};
       playAnim(keeper,'idle');
     }
     if(shots>=TOTAL) setTimeout(showFinal,450);
@@ -568,8 +593,8 @@ function resetGame(){
   if(ballMesh){ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);ballAnim.on=false;}
   playAnim(arda,'idle');
   if(keeper){
-    keeper.root.position.set(0,0,GZ+0.55);
-    kAnim={phase:'idle',t:0,sx:0,tx:0};
+    keeper.root.position.set(0,0,KEEPER_Z);
+    kAnim={phase:'idle',t:0};
     playAnim(keeper,'idle');
   }
 }
@@ -637,32 +662,38 @@ function loop(ts){
   if(keeper){
     if(kAnim.phase==='react'){
       kAnim.t+=dt;
-      keeper.root.position.x=0;
-      keeper.root.position.y=0;
+      keeper.root.position.set(0,0,KEEPER_Z);
       if(kAnim.t>=K_REACT_DELAY){
         kAnim.phase='dive';
         kAnim.t=0;
-        playAnim(keeper, pickKAnim(kAnim.side,kAnim.yN));
+        playAnim(keeper, kAnim.anim || 'dive_left');
       }
     }else if(kAnim.phase==='dive'){
       kAnim.t+=dt;
-      const u=Math.min(kAnim.t/0.42,1),e=easeOut(u);
-      keeper.root.position.x=kAnim.sx+(kAnim.tx-kAnim.sx)*e;
-      // Dalis yuksekligini sinirla (bar ustune cikmasin / ziplama abartmasin)
-      keeper.root.position.y=Math.sin(u*Math.PI)*0.10;
-      if(u>=1)kAnim.phase='hold';
+      const dur = Math.max(0.001, kAnim.dur || KEEPER_DIVE_DUR);
+      const u=Math.min(kAnim.t/dur,1),e=easeOut(u);
+      const s=kAnim.start || new THREE.Vector3(0,0,KEEPER_Z);
+      const t=kAnim.target || new THREE.Vector3(0,0,KEEPER_Z);
+      keeper.root.position.x = s.x + (t.x - s.x) * e;
+      keeper.root.position.y = s.y + (t.y - s.y) * e + Math.sin(u*Math.PI) * 0.06; // hafif yukselis
+      keeper.root.position.z = KEEPER_Z;
+      if(u>=1) kAnim.phase='hold';
     }else if(kAnim.phase==='hold'){
       // Pozisyonu sabitle (idle bob'a dusup ziplama/floating yapmasin)
-      keeper.root.position.y=0;
+      keeper.root.position.z=KEEPER_Z;
     }else if(kAnim.phase==='return'){
       kAnim.t+=dt;
-      const u=Math.min(kAnim.t/0.6,1),e=easeIO(u);
-      keeper.root.position.x=kAnim.sx*(1-e);
-      keeper.root.position.y=0;
-      if(u>=1){kAnim.phase='idle';keeper.root.position.set(0,0,GZ+0.55);}
+      const dur = Math.max(0.001, kAnim.dur || 0.6);
+      const u=Math.min(kAnim.t/dur,1),e=easeIO(u);
+      const s=kAnim.start || keeper.root.position.clone();
+      const t=kAnim.target || new THREE.Vector3(0,0,KEEPER_Z);
+      keeper.root.position.x = s.x + (t.x - s.x) * e;
+      keeper.root.position.y = s.y + (t.y - s.y) * e;
+      keeper.root.position.z = KEEPER_Z;
+      if(u>=1){kAnim.phase='idle';keeper.root.position.set(0,0,KEEPER_Z);}
     }else{
-      keeper.root.position.x=Math.sin(ts*0.0014)*0.04;
-      keeper.root.position.y=0;
+      // Idle: kaleci merkezde sabit kalir (pre-movement yok)
+      keeper.root.position.set(0,0,KEEPER_Z);
     }
   }
 
@@ -798,7 +829,7 @@ async function boot(){
   ];
 
   const kRoot=new THREE.Group();
-  kRoot.position.set(0,0,GZ+0.55);
+  kRoot.position.set(0,0,KEEPER_Z);
   kRoot.rotation.y=0;
   kRoot.renderOrder=8;
   scene.add(kRoot);
