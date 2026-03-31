@@ -652,7 +652,8 @@ function shootAt(worldTarget, localTarget){
 
   // Zorluk dengesi: hedeflenen sut basina gol olasiligi ~0.2466 (≈ %24.7)
   // (5 sutta >=3 gol kazanma olasiligi ≈ %10)
-  const pGoalBase = 0.2466;
+  // Biraz daha kolay: taban gol olasiligi arttirildi
+  const pGoalBase = 0.285;
   const cornerScore = clamp(Math.abs(dx)/Math.max(0.001, halfW), 0, 1); // 0 merkez, 1 kose
   const heightScore = clamp(yN, 0, 1); // 0 alt, 1 ust
   // Kullanicinin kose/ust tercihine kucuk odul, toplam ortalama pGoalBase etrafinda kalir
@@ -1153,12 +1154,14 @@ async function boot(){
       const wMin=b2.min.clone().applyMatrix4(inv);
       const wMax=b2.max.clone().applyMatrix4(inv);
       const localZ=new THREE.Vector3(0,0,TARGET_Z_WORLD).applyMatrix4(inv).z;
+      // Not: Bazi modellerde bbox tabaninda alt kisim "bos" kaldigi icin
+      // hedefleme duzlemi alt bandi kapsamayabiliyor. Kale olculeri zaten GW/GH'e scale ediliyor,
+      // bu yuzden local rect'i bilinen olculere sabitle.
       goalLocalRect={
-        xMin:Math.min(wMin.x,wMax.x),
-        xMax:Math.max(wMin.x,wMax.x),
-        yMin:Math.max(0,Math.min(wMin.y,wMax.y)),
-        yMax:Math.max(0.01,Math.max(wMin.y,wMax.y)),
-        // Hedef duzlemi: goal plane ile ayni world Z'e denk gelsin
+        xMin:-GW/2,
+        xMax: GW/2,
+        yMin: 0,
+        yMax: GH,
         z:localZ,
       };
 
