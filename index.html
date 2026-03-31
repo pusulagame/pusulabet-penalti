@@ -114,17 +114,14 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // index.html'nin bulunduğu dizini al, sonuna assets/ ekle
 // Örnek: https://pusulagame.github.io/pusulabet-penalti/ → .../assets/
-// jsDelivr CDN — GitHub Pages'den çok daha hızlı, mobilde kasma azalır
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/pusulagame/pusulabet-penalti@main/assets/';
-
+// GitHub Pages direkt — CDN cache sorununu bypass et
 const _base = (()=>{
   const p = window.location.pathname;
   const dir = p.endsWith('/') ? p : p.substring(0, p.lastIndexOf('/') + 1);
   return window.location.origin + dir + 'assets/';
 })();
 
-// CDN öncelikli
-function asset(file){ return CDN_BASE + file; }
+function asset(file){ return _base + file; }
 
 const CFG = {
   ASSETS: {
@@ -758,53 +755,60 @@ async function boot(){
     // ——————————————————————————————
     // Arda Güler kurulumu
     // ——————————————————————————————
-    if(ardaKickGltf && ardaIdleGltf){
+    const ardaIdleSrc = ardaIdleGltf || ardaKickGltf;
+    if(ardaIdleSrc){
       ardaRoot=new THREE.Group();
-      ardaRoot.position.set(0, 0, 2.2); // penaltı noktası civarı, kale gerisinde değil
+      ardaRoot.position.set(0, 0, 2.2);
       ardaRoot.rotation.y=Math.PI;
       ardaRoot.renderOrder=10;
       scene.add(ardaRoot);
 
-      // Idle scene — varsayılan görünür
-      const ardaIdleScene = ardaIdleGltf.scene;
+      // Idle scene — görünür
+      const ardaIdleScene = ardaIdleSrc.scene;
       normalizeGLB(ardaIdleScene, CFG.ARDA_HEIGHT);
       ardaIdleScene.traverse(c=>{ if(c.isMesh){ c.castShadow=false; c.receiveShadow=false; } });
       ardaIdleScene.visible = true;
       ardaRoot.add(ardaIdleScene);
 
       const ardaIdleMixer = new THREE.AnimationMixer(ardaIdleScene);
-      if(ardaIdleGltf.animations.length>0){
-        const idleClip = ardaIdleGltf.animations[0].clone();
+      if(ardaIdleSrc.animations.length>0){
+        const idleClip = ardaIdleSrc.animations[0].clone();
         removePositionTracks(idleClip); idleClip.name='idle';
         ardaActions.idle = ardaIdleMixer.clipAction(idleClip);
         ardaActions.idle.setLoop(THREE.LoopRepeat, Infinity);
         ardaActions.idle.play();
         ardaCurrentAction = ardaActions.idle;
+        ardaCurrentName = 'idle';
       }
 
-      // Kick scene — başta gizli
-      const ardaKickScene = ardaKickGltf.scene;
-      normalizeGLB(ardaKickScene, CFG.ARDA_HEIGHT);
-      ardaKickScene.traverse(c=>{ if(c.isMesh){ c.castShadow=false; c.receiveShadow=false; } });
-      ardaKickScene.visible = false;
-      ardaRoot.add(ardaKickScene);
+      // Kick scene — farklı GLB varsa ayrı ekle
+      let ardaKickMixer = ardaIdleMixer;
+      let ardaKickScene = ardaIdleScene;
 
-      const ardaKickMixer = new THREE.AnimationMixer(ardaKickScene);
-      if(ardaKickGltf.animations.length>0){
-        const kickClip = ardaKickGltf.animations[0].clone();
+      if(ardaKickGltf && ardaKickGltf !== ardaIdleSrc){
+        ardaKickScene = ardaKickGltf.scene;
+        normalizeGLB(ardaKickScene, CFG.ARDA_HEIGHT);
+        ardaKickScene.traverse(c=>{ if(c.isMesh){ c.castShadow=false; c.receiveShadow=false; } });
+        ardaKickScene.visible = false;
+        ardaRoot.add(ardaKickScene);
+        ardaKickMixer = new THREE.AnimationMixer(ardaKickScene);
+      }
+
+      const ardaKickSrc = ardaKickGltf || ardaIdleSrc;
+      if(ardaKickSrc.animations.length>0){
+        const kickClip = ardaKickSrc.animations[0].clone();
         removePositionTracks(kickClip); kickClip.name='kick';
         ardaActions.kick = ardaKickMixer.clipAction(kickClip);
         ardaActions.kick.setLoop(THREE.LoopOnce,1);
         ardaActions.kick.clampWhenFinished=true;
       }
 
-      // ardaMixer yerine her ikisi için ayrı mixer — loop'ta her ikisini güncelle
       ardaMixer = { idle: ardaIdleMixer, kick: ardaKickMixer,
         _idleScene: ardaIdleScene, _kickScene: ardaKickScene };
 
-      console.log('[boot] Arda kurulumu OK — idle+kick scenes');
+      console.log('[boot] Arda OK — idle:', !!ardaActions.idle, 'kick:', !!ardaActions.kick);
     } else {
-      console.warn('[boot] Arda GLB eksik — gösterilmeyecek');
+      console.warn('[boot] Arda GLB yok');
     }
 
     // ——————————————————————————————
