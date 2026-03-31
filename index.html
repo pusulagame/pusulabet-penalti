@@ -443,6 +443,10 @@ let ballMesh=null;
 let goals=0,misses=0,shots=0,gameActive=false,canShoot=true,ready=false;
 let parts=[],confs=[];
 let ballAnim={on:false,t:0,dur:0.55,p0:null,p1:null,p2:null};
+let ballCaught=false;
+let ballCatchAnchor=null;
+const _tmpV=new THREE.Vector3();
+const _tmpV2=new THREE.Vector3();
 let kAnim={phase:'idle',t:0,sx:0,tx:0,side:'center',yN:0};
 const K_REACT_DELAY=0.14;
 const PRE_SHOT_DELAY=1.0;      // hedef secildikten sonra bekleme (s)
@@ -454,6 +458,53 @@ let pendingKickTimer=null;
 
 function easeOut(t){return 1-Math.pow(1-t,3);}
 function easeIO(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+
+function getKeeperCatchAnchor(){
+  if(!keeper) return null;
+  const model = keeper.models?.[keeper.current] || keeper.root;
+  if(!model) return keeper.root;
+  let best=null;
+  model.traverse(o=>{
+    if(!o || !o.isBone || !o.name) return;
+    const n=o.name.toLowerCase();
+    // Mixamo: mixamorigRightHand / LeftHand etc.
+    if(n.includes('righthand') || n.includes('lefthand')) best=o;
+    if(!best && (n.includes('hand') || n.includes('wrist') || n.includes('forearm') || n.includes('spine2') || n.includes('chest'))) best=o;
+  });
+  return best || model;
+}
+
+function detachBallToScene(){
+  if(!ballMesh) return;
+  if(ballMesh.parent && ballMesh.parent !== scene){
+    ballMesh.getWorldPosition(_tmpV);
+    scene.add(ballMesh);
+    ballMesh.position.copy(_tmpV);
+  }
+  ballCaught=false;
+  ballCatchAnchor=null;
+}
+
+function attachBallToKeeper(){
+  if(!ballMesh || !keeper) return;
+  const anchor=getKeeperCatchAnchor();
+  if(!anchor) return;
+  detachBallToScene();
+  ballCatchAnchor=anchor;
+  anchor.add(ballMesh);
+
+  // Offset: anim tipine gore kabaca elde/goguste dursun (bone yoksa modele gore calisir)
+  const animName = (keeper.current||'').toLowerCase();
+  let ox=0, oy=1.05, oz=0.28;
+  if(animName.includes('low')){ oy=0.58; oz=0.22; ox=animName.includes('right')?0.18:-0.18; }
+  else if(animName.includes('dive')){ oy=0.85; oz=0.26; ox=animName.includes('right')?0.22:-0.22; }
+  else if(animName.includes('sidestep')){ oy=1.0; oz=0.32; ox=0.10; }
+
+  ballMesh.position.set(ox,oy,oz);
+  ballMesh.rotation.set(0,0,0);
+  ballAnim.on=false;
+  ballCaught=true;
+}
 
 // ── TARGETING (tam 3D raycast) ──
 function updateAimVisual(cx,cy){
@@ -551,6 +602,22 @@ function land(saved,wt){
     spawnP(px,py);spawnC(px,py-H*0.06);
     showRes(true);
   }else{
+    // SAVE: topu world-space'te dondurmak yerine kaleciye bagla (caught) ya da sektir (deflect)
+    const caught = Math.random() < 0.65; // basit ayrim: caught vs deflect
+    if(caught && keeper){
+      attachBallToKeeper();
+    }else if(ballMesh){
+      // Deflection/parry: kisa bir sekme animasyonu (kalede asili kalmasin)
+      detachBallToScene();
+      const p0=ballMesh.position.clone();
+      const dir=new THREE.Vector3().subVectors(p0, new THREE.Vector3(0,1.0,GZ+0.55)).normalize();
+      const p2=p0.clone().add(new THREE.Vector3(dir.x,0.1,1.0).multiplyScalar(2.0));
+      p2.y=Math.max(0.18, p0.y-0.25);
+      p2.z=Math.min(p2.z, GZ+1.4);
+      const p1=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
+      p1.y+=0.35;
+      ballAnim={on:true,t:0,dur:0.28,p0,p1,p2};
+    }
     misses++;document.getElementById('sMiss').textContent=misses;
     if(dot)dot.classList.add('miss');
     showRes(false);
@@ -570,7 +637,11 @@ function showRes(ok){
     ov.classList.remove('show');
     if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
     if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
-    if(ballMesh){ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);ballAnim.on=false;}
+    if(ballMesh){
+      detachBallToScene();
+      ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);
+      ballAnim.on=false;
+    }
     playAnim(arda,'idle');
     if(keeper){
       kAnim={phase:'return',t:0,sx:keeper.root.position.x,tx:0};
@@ -606,7 +677,11 @@ function resetGame(){
   parts=[];confs=[];buildDots();
   if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
   if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
-  if(ballMesh){ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);ballAnim.on=false;}
+  if(ballMesh){
+    detachBallToScene();
+    ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);
+    ballAnim.on=false;
+  }
   playAnim(arda,'idle');
   if(keeper){
     keeper.root.position.set(0,0,GZ+0.55);
