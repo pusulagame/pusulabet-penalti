@@ -133,7 +133,7 @@ const A = {
 const TOTAL=5, BALL_R=0.11;
 const GW=11.5, GH=3.0, GZ=-11;
 const GOAL_YOF=1.8;   // kale alt yuksekligi (hucre hesabi icin)
-const ARDA_H=1.82, KEEPER_H=2.20;
+const ARDA_H=1.82, KEEPER_H=3.50;
 const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡"];
 const MMSG=["Kaleci tuttu! 🧤","Az kaldi! 😅","Direkce carpti!","Kacti! 😬","Kaleci sezdi! 👀"];
 const CC=['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'];
@@ -256,10 +256,24 @@ function charScene(gltf,h,name,loop,vis){
 function charPlay(ch,name){
   if(!ch||!ch.actions[name])return;
   if(ch.current===name)return;
-  if(ch.scenes[ch.current])ch.scenes[ch.current].visible=false;
-  if(ch.scenes[name])ch.scenes[name].visible=true;
+
+  const prevScn=ch.scenes[ch.current];
+  const nextScn=ch.scenes[name];
+
+  // Sadece farkli scene'lerde visibility swap yap
+  if(prevScn&&nextScn&&prevScn!==nextScn){
+    prevScn.visible=false;
+    nextScn.visible=true;
+  }
+
+  // Onceki action'i durdur
+  if(ch.current&&ch.actions[ch.current]){
+    ch.actions[ch.current].stop();
+  }
+
   ch.current=name;
   ch.actions[name].reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
+  console.log('[charPlay]',name);
 }
 
 function charTick(ch,dt){
@@ -537,6 +551,10 @@ async function boot(){
       arda.scenes.kick=arda.scenes.idle;arda.mixers.kick=mx;arda.actions.kick=act;
     }
 
+    // Tum scene'leri gizle
+    Object.values(arda.scenes).forEach(s=>s.visible=false);
+    if(arda.scenes.idle) arda.scenes.idle.visible=true;
+    arda.current='';
     charPlay(arda,'idle');
     console.log('[Arda] actions:',Object.keys(arda.actions));
   }
@@ -549,18 +567,22 @@ async function boot(){
   keeper={root:kRoot,scenes:{},mixers:{},actions:{},current:''};
 
   const kDefs=[
-    [kI, 'idle',        THREE.LoopRepeat, true ],
-    [kDL,'dive_left',   THREE.LoopOnce,   false],
-    [kDR,'dive_right',  THREE.LoopOnce,   false],
-    [kSLL,'save_ll',    THREE.LoopOnce,   false],
-    [kSLR,'save_lr',    THREE.LoopOnce,   false],
-    [kStL,'sidestep_left', THREE.LoopOnce,false],
-    [kStR,'sidestep_right',THREE.LoopOnce,false],
+    [kI, 'idle',           THREE.LoopRepeat, true ],
+    [kDL,'dive_left',      THREE.LoopOnce,   false],
+    [kDR,'dive_right',     THREE.LoopOnce,   false],
+    [kSLL,'save_ll',       THREE.LoopOnce,   false],
+    [kSLR,'save_lr',       THREE.LoopOnce,   false],
+    [kStL,'sidestep_left', THREE.LoopOnce,   false],
+    [kStR,'sidestep_right',THREE.LoopOnce,   false],
   ];
   for(const[g,name,loop,vis]of kDefs){
     const d=charScene(g,KEEPER_H,name,loop,vis);
     if(d){kRoot.add(d.scn);keeper.scenes[name]=d.scn;keeper.mixers[name]=d.mx;keeper.actions[name]=d.act;}
   }
+  // Tum scene'leri gizle, idle'i manuel goster
+  Object.values(keeper.scenes).forEach(s=>s.visible=false);
+  if(keeper.scenes.idle) keeper.scenes.idle.visible=true;
+  keeper.current=''; // bos birakmak charPlay'in ilk cagrisini gecmesini saglar
   charPlay(keeper,'idle');
   console.log('[Keeper] actions:',Object.keys(keeper.actions));
 
