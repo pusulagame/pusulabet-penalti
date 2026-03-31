@@ -118,22 +118,22 @@ const BASE = (()=>{
 const A = {
   bg:   BASE+'bg.png',
   ball: BASE+'ball.png',
-  arda_idle:            BASE+'arda_idle.glb',
-  arda_kick:            BASE+'arda_kick.glb',
-  keeper_idle:          BASE+'keeper_idle.glb',
-  keeper_dive_left:     BASE+'keeper_dive_left.glb',
-  keeper_dive_right:    BASE+'keeper_dive_right.glb',
-  keeper_save_ll:       BASE+'keeper_save_low_left.glb',
-  keeper_save_lr:       BASE+'keeper_save_low_right.glb',
-  keeper_step_l:        BASE+'keeper_sidestep_left.glb',
-  keeper_step_r:        BASE+'keeper_sidestep_right.glb',
+  arda_idle:            BASE+'arda/idle.glb',
+  arda_kick:            BASE+'arda/kick.glb',
+  keeper_idle:          BASE+'keeper/idle.glb',
+  keeper_dive_left:     BASE+'keeper/dive_left.glb',
+  keeper_dive_right:    BASE+'keeper/dive_right.glb',
+  keeper_save_ll:       BASE+'keeper/save_low_left.glb',
+  keeper_save_lr:       BASE+'keeper/save_low_right.glb',
+  keeper_step_l:        BASE+'keeper/sidestep_left.glb',
+  keeper_step_r:        BASE+'keeper/sidestep_right.glb',
 };
 
 // ── SABITLER ───────────────────────────────────────────────
 const TOTAL=5, BALL_R=0.11;
 const GW=11.5, GH=3.0, GZ=-11;
 const GOAL_YOF=1.8;   // kale alt yuksekligi (hucre hesabi icin)
-const ARDA_H=1.82, KEEPER_H=3.50;
+const ARDA_H=1.82, KEEPER_H=2.20;
 const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡"];
 const MMSG=["Kaleci tuttu! 🧤","Az kaldi! 😅","Direkce carpti!","Kacti! 😬","Kaleci sezdi! 👀"];
 const CC=['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'];
@@ -412,7 +412,7 @@ function resetGame(){
   parts=[];confs=[];buildDots();
   if(ballMesh){ballMesh.position.set(0,BALL_R,0);ballAnim.on=false;}
   charPlay(arda,'idle');
-  if(keeper){keeper.root.position.set(0,0,GZ+0.35);kAnim={phase:'idle',t:0,sx:0,tx:0};charPlay(keeper,'idle');}
+  if(keeper){keeper.root.position.set(0,0,GZ+1.2);kAnim={phase:'idle',t:0,sx:0,tx:0};charPlay(keeper,'idle');}
 }
 window.resetGame=resetGame;
 
@@ -478,7 +478,7 @@ function loop(ts){
       const u=Math.min(kAnim.t/0.6,1),e=easeIO(u);
       keeper.root.position.x=kAnim.sx*(1-e);
       keeper.root.position.y=0;
-      if(u>=1){kAnim.phase='idle';keeper.root.position.set(0,0,GZ+0.35);}
+      if(u>=1){kAnim.phase='idle';keeper.root.position.set(0,0,GZ+1.2);}
     }else{
       keeper.root.position.x=Math.sin(ts*0.0014)*0.05;
       keeper.root.position.y=0;
@@ -519,39 +519,25 @@ async function boot(){
   });
 
   // ── ARDA ──
-  const aIdleSrc=aI||aK;
-  const aKickSrc=aK||aI;
-  if(aIdleSrc){
+  if(aI||aK){
     const root=new THREE.Group();
-    root.position.set(0,0,1.8);root.rotation.y=Math.PI;root.renderOrder=10;
+    root.position.set(0,0,0.8);root.rotation.y=Math.PI;root.renderOrder=10;
     scene.add(root);
     arda={root,scenes:{},mixers:{},actions:{},current:''};
 
-    // Idle
-    const id=charScene(aIdleSrc,ARDA_H,'idle',THREE.LoopRepeat,true);
-    if(id){root.add(id.scn);arda.scenes.idle=id.scn;arda.mixers.idle=id.mx;arda.actions.idle=id.act;}
-
-    // Kick — farkli GLB ise ayri sahne
-    if(aKickSrc&&aKickSrc!==aIdleSrc){
-      const kd=charScene(aKickSrc,ARDA_H,'kick',THREE.LoopOnce,false);
-      if(kd){root.add(kd.scn);arda.scenes.kick=kd.scn;arda.mixers.kick=kd.mx;arda.actions.kick=kd.act;}
-    }else if(aKickSrc&&aKickSrc.animations.length>1){
-      // Ayni GLB, 2. animasyon kick
-      const mx=arda.mixers.idle;
-      const clip=aKickSrc.animations[1].clone();
-      noPosTracks(clip);clip.name='kick';
-      const act=mx.clipAction(clip);act.setLoop(THREE.LoopOnce,1);act.clampWhenFinished=true;
-      arda.scenes.kick=arda.scenes.idle;arda.mixers.kick=mx;arda.actions.kick=act;
-    }else if(aKickSrc){
-      // Ayni GLB, ayni animasyon — kick = idle ile ayni sahne, 1. animasyon
-      const mx=arda.mixers.idle;
-      const clip=aKickSrc.animations[0].clone();
-      noPosTracks(clip);clip.name='kick';
-      const act=mx.clipAction(clip);act.setLoop(THREE.LoopOnce,1);act.clampWhenFinished=true;
-      arda.scenes.kick=arda.scenes.idle;arda.mixers.kick=mx;arda.actions.kick=act;
+    // Idle — kendi GLB'sinden ayri scene
+    if(aI){
+      const d=charScene(aI,ARDA_H,'idle',THREE.LoopRepeat,false);
+      if(d){root.add(d.scn);arda.scenes.idle=d.scn;arda.mixers.idle=d.mx;arda.actions.idle=d.act;}
     }
 
-    // Tum scene'leri gizle
+    // Kick — kendi GLB'sinden ayri scene
+    if(aK){
+      const d=charScene(aK,ARDA_H,'kick',THREE.LoopOnce,false);
+      if(d){root.add(d.scn);arda.scenes.kick=d.scn;arda.mixers.kick=d.mx;arda.actions.kick=d.act;}
+    }
+
+    // Sadece idle goster
     Object.values(arda.scenes).forEach(s=>s.visible=false);
     if(arda.scenes.idle) arda.scenes.idle.visible=true;
     arda.current='';
@@ -562,7 +548,7 @@ async function boot(){
   // ── KALECI ──
   if(!kI){console.error('keeper_idle zorunlu!');return;}
   const kRoot=new THREE.Group();
-  kRoot.position.set(0,0,GZ+0.35);kRoot.rotation.y=0;kRoot.renderOrder=8;
+  kRoot.position.set(0,0,GZ+1.2);kRoot.rotation.y=0;kRoot.renderOrder=8;
   scene.add(kRoot);
   keeper={root:kRoot,scenes:{},mixers:{},actions:{},current:''};
 
