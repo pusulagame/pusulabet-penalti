@@ -114,7 +114,6 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // index.html'nin bulunduğu dizini al, sonuna assets/ ekle
 // Örnek: https://pusulagame.github.io/pusulabet-penalti/ → .../assets/
-// GitHub Pages direkt — CDN cache sorununu bypass et
 const _base = (()=>{
   const p = window.location.pathname;
   const dir = p.endsWith('/') ? p : p.substring(0, p.lastIndexOf('/') + 1);
@@ -139,8 +138,8 @@ const CFG = {
       keeper_sidestep_right: asset('keeper_sidestep_right.glb'),
     }
   },
-  ARDA_HEIGHT:   1.75,  // metre — penaltı atıcısı
-  KEEPER_HEIGHT: 2.80,  // metre — kaleci daha büyük görünsün
+  ARDA_HEIGHT:   1.82,  // gerçekçi boy
+  KEEPER_HEIGHT: 4.50,  // kaleci çok daha büyük görünsün
 };
 
 // Boot başlamadan önce base path'i logla — 404 hatalarında kontrol et
@@ -744,10 +743,14 @@ async function boot(){
       loadGLB(CFG.ASSETS.glb.keeper_sidestep_right),
     ]);
 
-    // Hangi dosyaların yüklendiğini logla
+    // Hangi dosyaların yüklendiğini logla + animasyon isimlerini göster
     const _names=['arda_kick','arda_idle','keeper_idle','keeper_dive_left','keeper_dive_right','keeper_save_low_left','keeper_save_low_right','keeper_sidestep_left','keeper_sidestep_right'];
     [ardaKickGltf,ardaIdleGltf,keeperIdleGltf,keeperDiveLGltf,keeperDiveRGltf,keeperSaveLLGltf,keeperSaveLRGltf,keeperStepLGltf,keeperStepRGltf]
-      .forEach((g,i)=>console.log(`[GLB] ${_names[i]}: ${g?'✓':'✗ YÜKLENEMEDİ — ATLANIYOR'}`));
+      .forEach((g,i)=>{
+        const status = g ? '✓' : '✗ YÜKLENEMEDİ';
+        const anims = g ? g.animations.map(a=>a.name).join(', ') : '-';
+        console.log(`[GLB] ${_names[i]}: ${status} | animasyonlar: [${anims}]`);
+      });
 
     // keeper_idle zorunlu — Arda opsiyonel (eksikse görünmez, oyun devam eder)
     if(!keeperIdleGltf) throw new Error('Zorunlu: keeper_idle.glb yüklenemedi');
