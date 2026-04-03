@@ -41,9 +41,26 @@ async function onPlayerStart(player) {
 
   const idle = `${player.dir}/${player.idle}`;
   const kick = `${player.dir}/${player.kick}`;
+  // Telegram geri tuşunu gizle — oyun sırasında yanlışlıkla başa dönmesin
+  const _tg = window.Telegram?.WebApp;
+  try { _tg?.BackButton?.hide(); } catch(_) {}
+  try { _tg?.enableClosingConfirmation?.(); } catch(_) {}
+
   const { setStrikerAssets, runPenaltyGame } = await import('./scenes/game-scene.js');
   setStrikerAssets(idle, kick);
-  await runPenaltyGame();
+  try {
+    await runPenaltyGame();
+  } catch(err) {
+    console.error('[Game] Kritik hata:', err);
+    // Yükleme ekranında hata mesajı göster — başa atmak yerine
+    const ldTxt  = document.getElementById('ldTxt');
+    const ldPctEl = document.getElementById('ldPct');
+    if(ldTxt)  ldTxt.textContent  = 'HATA OLUŞTU';
+    if(ldPctEl) ldPctEl.textContent = 'Sayfayı yenileyin';
+    if(ld) ld.classList.remove('hide');
+  } finally {
+    try { _tg?.disableClosingConfirmation?.(); } catch(_) {}
+  }
 }
 
 document.getElementById('loading')?.classList.add('hide');

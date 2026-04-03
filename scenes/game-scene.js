@@ -117,8 +117,14 @@ function applyCameraPreset(){
   cam.lookAt(preset.look);
 }
 
-const rdr=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
-rdr.setPixelRatio(Math.min(devicePixelRatio,1.5));
+const _mob = window.innerWidth < 768 || /Android|iPhone|iPad/i.test(navigator.userAgent);
+const rdr=new THREE.WebGLRenderer({
+  canvas,
+  antialias:!_mob,           // mobilde antialias kapalı → bellek/hız
+  alpha:true,
+  powerPreference:_mob?'low-power':'high-performance'
+});
+rdr.setPixelRatio(_mob ? 1.0 : Math.min(devicePixelRatio,1.5));
 rdr.outputColorSpace=THREE.SRGBColorSpace;
 rdr.toneMapping=THREE.ACESFilmicToneMapping;
 rdr.toneMappingExposure=1.05;
@@ -443,6 +449,11 @@ function updateAimVisual(cx,cy){
 function pickKAnim(side,yN){
   const high=yN>0.66;
   const low=yN<0.33;
+  // Mobilde yalnızca idle+dive_left+dive_right yüklü → bunlara map'le
+  if(_mob){
+    if(side==='center') return 'idle';
+    return side==='left'?'dive_left':'dive_right';
+  }
   if(high) return side==='left'?'dive_left':(side==='right'?'dive_right':(Math.random()<0.5?'dive_left':'dive_right'));
   if(low)  return side==='left'?'save_low_left':(side==='right'?'save_low_right':'save_low_left');
   if(side==='center') return Math.random()<0.5?'sidestep_left':'sidestep_right';
@@ -790,8 +801,9 @@ async function boot(){
     scene.add(ballMesh);
   }catch(e){console.error('[Ball.png] Yuklenemedi',e);}
 
-  // Opsiyonel: ball.fbx varsa png topun yerine onu kullan
+  // Opsiyonel: ball.fbx varsa png topun yerine onu kullan (mobilde atla)
   try{
+    if(_mob) throw new Error('mobile:skip');
     const bfbx=await loadFBX(ASSET('ball/ball_texture.fbx'));
     if(bfbx){
       bfbx.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; }});
@@ -815,13 +827,16 @@ async function boot(){
     console.warn('[Ball.fbx] Yok/hatali (opsiyonel)',e?.message||e);
   }
 
-  // ── STRIKER FBX ──
+  // ── STRIKER FBX ── (mobilde bellek patlamasını önlemek için sıralı yükle)
   const idleUrl=ASSET(strikerIdleRel);
   const kickUrl=ASSET(strikerKickRel);
-  const [strikerIdle, strikerKick] = await Promise.all([
-    loadFBX(idleUrl),
-    loadFBX(kickUrl),
-  ]);
+  let strikerIdle, strikerKick;
+  if(_mob){
+    strikerIdle = await loadFBX(idleUrl);
+    strikerKick  = await loadFBX(kickUrl);
+  } else {
+    [strikerIdle, strikerKick] = await Promise.all([loadFBX(idleUrl), loadFBX(kickUrl)]);
+  }
 
   if(!strikerIdle && !strikerKick){
     console.warn('[Striker] FBX yüklenemedi:', idleUrl, kickUrl);
@@ -887,7 +902,12 @@ async function boot(){
   }
 
   // ── KALECI FBX ──
-  const keeperFiles=[
+  // Mobilde yalnızca 3 animasyon: 7×14MB=98MB → 3×14MB=42MB
+  const keeperFiles= _mob ? [
+    ['idle',       ASSET('keeper/idle.fbx'),       THREE.LoopRepeat],
+    ['dive_left',  ASSET('keeper/dive_left.fbx'),  THREE.LoopOnce],
+    ['dive_right', ASSET('keeper/dive_right.fbx'), THREE.LoopOnce],
+  ] : [
     ['idle',          ASSET('keeper/idle.fbx'),           THREE.LoopRepeat],
     ['dive_left',     ASSET('keeper/dive_left.fbx'),      THREE.LoopOnce],
     ['dive_right',    ASSET('keeper/dive_right.fbx'),     THREE.LoopOnce],
@@ -904,8 +924,14 @@ async function boot(){
   scene.add(kRoot);
   keeper={root:kRoot, models:{}, mixers:{}, actions:{}, current:''};
 
-  // Paralel yukle
-  const kLoaded=await Promise.all(keeperFiles.map(([,url])=>loadFBX(url)));
+  // Mobilde sıralı yükle (bellek spike'ını önle), masaüstünde paralel
+  let kLoaded;
+  if(_mob){
+    kLoaded=[];
+    for(const[,url] of keeperFiles) kLoaded.push(await loadFBX(url));
+  } else {
+    kLoaded=await Promise.all(keeperFiles.map(([,url])=>loadFBX(url)));
+  }
 
   kLoaded.forEach((fbx,i)=>{
     if(!fbx)return;
@@ -944,9 +970,9 @@ async function boot(){
     console.warn('[Keeper] ground/scale ayari yapilamadi',e?.message||e);
   }
 
-  // GOAL FBX (opsiyonel)
+  // GOAL FBX (opsiyonel — mobilde 27MB tasarruf için atla)
   try{
-    // Yeni yapida kale modeli assets/goal/ altinda
+    if(_mob) throw new Error('mobile:skip');
     const gfbx=await loadFBX(ASSET('goal/goal_texture.fbx'));
     if(gfbx){
       gfbx.traverse(o=>{ if(o.isMesh){ o.castShadow=false; o.receiveShadow=false; }});
