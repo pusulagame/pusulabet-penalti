@@ -4,7 +4,6 @@ import { sendPenaltyResult } from '../services/result-sender.js';
 import { store } from '../state/store.js';
 import { getTg, getTgId, isPenaltyLocked } from '../services/telegram.js';
 
-// assets/ yolu her zaman index.html ile aynı dizinde; relative path en güvenli çözüm
 const ASSET = (p) => './assets/' + p;
 
 let strikerIdleRel = 'onuachu/onuachu_idle.fbx';
@@ -19,58 +18,44 @@ export async function runPenaltyGame() {
   await boot();
 }
 
-
-// ── ASSET YOLLARI ──
-// BASE/ASSET from module scope
-
 // ── SABITLER ──
 const TOTAL=5, BALL_R=0.11;
-// Gercek olculer: kale 7.32m x 2.44m, penalti 11m
 const GW=7.32, GH=2.44;
-// Goal line Z (world). Penalti noktasi 11m onde (kamera tarafina dogru).
 const GZ=-16;
-const PENALTY_Z = GZ + 11; // = -5
-// Goal modelinin BG ile cakismamasi icin biraz geride durmasi
+const PENALTY_Z = GZ + 11;
 const GOAL_MODEL_Z = GZ - 0.45;
-// Hedef/impact duzlemi: kale icinde, kalecinin arkasinda
 const TARGET_Z_WORLD = GZ + 0.02;
-// Fallback: goal fbx yoksa secim rect'i icin y offset
 const GOAL_YOF=0.22;
-// FBX Mixamo modelleri genellikle 100x buyuk gelir (cm cinsinden)
-// normalizeChar ile hedef boya scale edilir
-// Arda oncekine gore ~%30 kucuk
-const ARDA_TARGET_H   = 1.28;  // metre
-// Kaleci kale icinde gorunur ve daha gercekci
-const KEEPER_TARGET_H = 1.78;  // metre
-
-const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡"];
-const MMSG=["Kaleci tuttu! 🧤","Az kaldi! 😅","Direkce carpti!","Kacti! 😬","Kaleci sezdi! 👀"];
+const ARDA_TARGET_H = 1.28;
+const KEEPER_TARGET_H = 1.78;
+const GMSG=["Net köşe! 🔥","Tam isabet! ✨","Harika şut! 💥","Üst köşe! 🎯","Geçilmez! ⚡"];
+const MMSG=["Kaleci tuttu! 🧤","Az kaldı! 😅","Direkten döndü!","Kaçtı! 😬","Kaleci sezdi! 👀"];
 const CC=['#FFD700','#FF6B00','#00E676','#FF1744','#00BCD4','#E91E63','#fff'];
 
-// ── LOADING UI (progress bar) ──
+// ── MOBİL TESPİT ──
+const _mob = window.innerWidth < 768 || /Android|iPhone|iPad/i.test(navigator.userAgent);
+
+// ── LOADING UI ──
 const ld=document.getElementById('loading');
 const ldFill=document.getElementById('ldFill');
 const ldPct=document.getElementById('ldPct');
 
-// ── THREE.JS ──
+// ── THREE.JS SETUP ──
 const canvas=document.getElementById('c');
 const fx=document.getElementById('fx');
 const fctx=fx.getContext('2d');
-let W=innerWidth,H=innerHeight;
+let W=innerWidth, H=innerHeight;
 
 const manager = new THREE.LoadingManager();
 
-// FBX dosyalarına gömülü Windows mutlak yolları (C:/Users/...) düzelt.
-// FBXLoader şunu üretir: "./assets/osimhen/C:/Users/.../Image_0.jpg"
-// → "./assets/osimhen/Image_0.jpg" olarak düzelt.
+// FBX Windows mutlak yol düzeltici
 manager.setURLModifier((url) => {
-  // "./assets/xxx/C:/..." veya "./assets/xxx/C:\..." kalıbını yakala
-  const m = url.match(/^(.*\/)([A-Za-z]:[/\\].+)$/);
+  const m = url.match(/^(.*/)([A-Za-z]:[/\\].+)$/);
   if (m) {
-    const dir      = m[1]; // "./assets/osimhen/"
-    const winPath  = m[2].replace(/\\/g, '/');
+    const dir = m[1];
+    const winPath = m[2].replace(/\\/g, '/');
     const filename = winPath.split('/').pop();
-    return dir + filename; // "./assets/osimhen/Image_0.jpg"
+    return dir + filename;
   }
   return url;
 });
@@ -79,10 +64,9 @@ function setLoadProgress(p){
   const pct=Math.round(clamp(p,0,1)*100);
   if(ldPct) ldPct.textContent=pct+'%';
   if(ldFill) ldFill.style.width=pct+'%';
-  if(pct>=100){
-    if(ld) ld.classList.add('hide');
-  }
+  if(pct>=100){ if(ld) ld.classList.add('hide'); }
 }
+
 manager.onProgress=(_url, itemsLoaded, itemsTotal)=>{
   if(itemsTotal>0) setLoadProgress(itemsLoaded/itemsTotal);
 };
@@ -90,22 +74,19 @@ manager.onLoad=()=>setLoadProgress(1);
 
 const scene=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(42,W/H,0.1,220);
+
 const isMobile = ()=> window.innerWidth < 768;
 
-// Kamera kompozisyon presetleri (oyun mantigina dokunmadan kadraj duzeltme)
 const CAMERA_PRESETS = {
   desktop: {
     pos: new THREE.Vector3(0, 1.65, 9.6),
     look: new THREE.Vector3(0, 1.25, GZ + 2.2),
-    fovPortrait: 58,
-    fovLandscape: 42,
+    fovPortrait: 58, fovLandscape: 42,
   },
   mobile: {
-    // Mobilde sahne fazla uzak gorunmesin: kamerayi yaklastir + FOV'i daralt
     pos: new THREE.Vector3(0, 1.56, 6.85),
     look: new THREE.Vector3(0, 1.22, GZ + 2.15),
-    fovPortrait: 38,
-    fovLandscape: 44,
+    fovPortrait: 38, fovLandscape: 44,
   }
 };
 
@@ -117,20 +98,24 @@ function applyCameraPreset(){
   cam.lookAt(preset.look);
 }
 
-const _mob = window.innerWidth < 768 || /Android|iPhone|iPad/i.test(navigator.userAgent);
+// ── RENDERER — MOBİL OPTİMİZASYON ──
 const rdr=new THREE.WebGLRenderer({
   canvas,
-  antialias:!_mob,           // mobilde antialias kapalı → bellek/hız
-  alpha:true,
-  powerPreference:_mob?'low-power':'high-performance'
+  antialias: false,               // MOBİLDE KAPALI — performans kritik
+  alpha: true,
+  powerPreference: _mob ? 'low-power' : 'high-performance',
+  precision: _mob ? 'mediump' : 'highp',  // Mobilde orta hassasiyet
 });
-rdr.setPixelRatio(_mob ? 1.0 : Math.min(devicePixelRatio,1.5));
-rdr.outputColorSpace=THREE.SRGBColorSpace;
-rdr.toneMapping=THREE.ACESFilmicToneMapping;
-rdr.toneMappingExposure=1.05;
-rdr.autoClear=false;
 
-// ── BACKGROUND (ayri scene: full-screen cover) ──
+// DPR: Mobilde 1.0 sabit — 3x DPR = 9x piksel = 9x GPU yükü!
+rdr.setPixelRatio(_mob ? 1.0 : Math.min(devicePixelRatio, 1.5));
+rdr.outputColorSpace = THREE.SRGBColorSpace;
+// Mobilde hafif tone mapping kullan
+rdr.toneMapping = _mob ? THREE.LinearToneMapping : THREE.ACESFilmicToneMapping;
+rdr.toneMappingExposure = 1.05;
+rdr.autoClear = false;
+
+// ── BACKGROUND ──
 const bgScene=new THREE.Scene();
 const bgCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 const bgPlane=new THREE.Mesh(
@@ -141,13 +126,13 @@ bgPlane.frustumCulled=false;
 bgPlane.renderOrder=-1000;
 bgScene.add(bgPlane);
 let bgTex=null;
+
 function updateBgCover(){
   if(!bgTex||!bgTex.image) return;
   const iw=bgTex.image.width||1536;
   const ih=bgTex.image.height||1024;
   const imgAspect=iw/ih;
   const viewAspect=W/H;
-  // cover: ekranı doldur, taşanı kırp
   if(viewAspect>imgAspect){
     const scale=viewAspect/imgAspect;
     bgTex.repeat.set(1,1/scale);
@@ -161,9 +146,9 @@ function updateBgCover(){
 }
 
 function resize(){
-  W=innerWidth;H=innerHeight;
-  canvas.width=W;canvas.height=H;
-  fx.width=W;fx.height=H;
+  W=innerWidth; H=innerHeight;
+  canvas.width=W; canvas.height=H;
+  fx.width=W; fx.height=H;
   rdr.setSize(W,H,false);
   cam.aspect=W/H;
   applyCameraPreset();
@@ -171,22 +156,25 @@ function resize(){
 }
 resize();
 addEventListener('resize',resize);
-// Mobil WebView'lerde (Telegram dahil) bazen sadece visualViewport degisir.
-if (window.visualViewport){
+
+if(window.visualViewport){
   window.visualViewport.addEventListener('resize', resize);
   window.visualViewport.addEventListener('scroll', resize);
 }
 
-// Isiklar
-scene.add(new THREE.AmbientLight(0xffffff,0.8));
-const sun=new THREE.DirectionalLight(0xfff5e6,1.0);
+// ── IŞIKLAR — Mobilde basit ──
+scene.add(new THREE.AmbientLight(0xffffff, _mob ? 1.0 : 0.8));
+const sun=new THREE.DirectionalLight(0xfff5e6, _mob ? 1.2 : 1.0);
 sun.position.set(-8,22,12);
 scene.add(sun);
-const fill=new THREE.DirectionalLight(0xaaccff,0.25);
-fill.position.set(10,8,-5);
-scene.add(fill);
+if(!_mob){
+  // Fill light sadece masaüstünde
+  const fill=new THREE.DirectionalLight(0xaaccff,0.25);
+  fill.position.set(10,8,-5);
+  scene.add(fill);
+}
 
-// Zemin
+// ── ZEMIN ──
 const gnd=new THREE.Mesh(
   new THREE.PlaneGeometry(120,120),
   new THREE.MeshStandardMaterial({transparent:true,opacity:0,depthWrite:false})
@@ -194,38 +182,59 @@ const gnd=new THREE.Mesh(
 gnd.rotation.x=-Math.PI/2;
 scene.add(gnd);
 
-// Penalti noktasi (world-space: kale merkezinden 11m)
+// ── PENALTI NOKTASI ──
 const wm=new THREE.MeshBasicMaterial({color:0xffffff});
-const sp=new THREE.Mesh(new THREE.CircleGeometry(0.22,32),wm);
-sp.rotation.x=-Math.PI/2;sp.position.set(0,0.02,PENALTY_Z);scene.add(sp);
+const sp=new THREE.Mesh(new THREE.CircleGeometry(0.22,_mob?16:32),wm);
+sp.rotation.x=-Math.PI/2; sp.position.set(0,0.02,PENALTY_Z); scene.add(sp);
 const ln=new THREE.Mesh(new THREE.PlaneGeometry(9.15,0.12),wm);
-ln.rotation.x=-Math.PI/2;ln.position.set(0,0.02,PENALTY_Z-5.5);scene.add(ln);
+ln.rotation.x=-Math.PI/2; ln.position.set(0,0.02,PENALTY_Z-5.5); scene.add(ln);
 
-// Kale agzi rect'i (world) — goal.fbx yuklenince bbox'tan guncellenir
+// ── MOBİLDE FALLBACK KALE (FBX yoksa basit çubuk kale) ──
+let mobileGoalGroup = null;
+function buildMobileGoal(){
+  const g = new THREE.Group();
+  g.position.set(0, 0, GOAL_MODEL_Z);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness:0.4, metalness:0.3 });
+  const R = 0.05;
+  // Sol direk
+  const lp = new THREE.Mesh(new THREE.CylinderGeometry(R,R,GH,8), mat);
+  lp.position.set(-GW/2, GH/2, 0); g.add(lp);
+  // Sağ direk
+  const rp = new THREE.Mesh(new THREE.CylinderGeometry(R,R,GH,8), mat);
+  rp.position.set(GW/2, GH/2, 0); g.add(rp);
+  // Üst bar
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(R,R,GW+R*2,8), mat);
+  bar.rotation.z = Math.PI/2;
+  bar.position.set(0, GH, 0); g.add(bar);
+  // Arka dikey barlar (x3) — hafif ag gorunumu
+  const aMat = new THREE.MeshBasicMaterial({color:0xdddddd, transparent:true, opacity:0.35, side:THREE.DoubleSide});
+  for(let i=-1;i<=1;i++){
+    const av = new THREE.Mesh(new THREE.PlaneGeometry(0.02, GH), aMat);
+    av.position.set(i*(GW/2-0.2), GH/2, -0.5); g.add(av);
+  }
+  scene.add(g);
+  return g;
+}
+
 let goalRect={xMin:-GW/2,xMax:GW/2,yMin:GOAL_YOF,yMax:GOAL_YOF+GH,z:GZ};
-// Target plane'in world Z'i (goalun icinde, kaleci arkasi) — sabit
-// Goal local uzayinda hedef rect (hiG goalObj child olunca local yerlesim buradan gelir)
 let goalLocalRect={xMin:-GW/2,xMax:GW/2,yMin:0,yMax:GH,z:0};
 
-// ── SAHNE OBJELERI (TDZ hatasini onlemek icin erken tanim) ──
-let striker=null;   // {models:{idle,kick}, mixers:{idle,kick}, actions:{idle,kick}, current}
-let keeper=null; // {models:{idle,dive_left,...}, mixers:{...}, actions:{...}, current}
-let goalObj=null; // goal.fbx
-let ballObj=null; // ball.fbx (opsiyonel)
-
-// Goal hit plane mesh (raycast): goal ile aynı düzlemde ve aynı dönüşte
+// ── SAHNE OBJELERİ ──
+let striker=null;
+let keeper=null;
+let goalObj=null;
+let ballObj=null;
 let goalHitMesh=null;
+
 const rc=new THREE.Raycaster();
 const ndc=new THREE.Vector2();
 const hit=new THREE.Vector3();
 
-// Goal hit plane mesh (raycast): goal ile aynı düzlemde ve aynı dönüşte
 function ensureGoalHitMesh(){
   const w=Math.max(0.01,goalLocalRect.xMax-goalLocalRect.xMin);
   const h=Math.max(0.01,goalLocalRect.yMax-goalLocalRect.yMin);
   const cx=(goalLocalRect.xMin+goalLocalRect.xMax)/2;
   const cy=(goalLocalRect.yMin+goalLocalRect.yMax)/2;
-
   if(!goalHitMesh){
     goalHitMesh=new THREE.Mesh(
       new THREE.PlaneGeometry(w,h),
@@ -237,9 +246,7 @@ function ensureGoalHitMesh(){
     goalHitMesh.geometry.dispose();
     goalHitMesh.geometry=new THREE.PlaneGeometry(w,h);
   }
-
   goalHitMesh.position.set(cx,cy,goalLocalRect.z);
-
   if(goalObj){
     if(goalHitMesh.parent!==goalObj) goalObj.add(goalHitMesh);
   }else{
@@ -249,9 +256,9 @@ function ensureGoalHitMesh(){
 }
 ensureGoalHitMesh();
 
-// Aim marker: hedef noktasinda kucuk isaret (desktop hover + mobile tap feedback)
+// Aim marker
 const aimMarker=new THREE.Mesh(
-  new THREE.CircleGeometry(0.12,24),
+  new THREE.CircleGeometry(0.12,_mob?12:24),
   new THREE.MeshBasicMaterial({color:0xffd700,transparent:true,opacity:0.0,depthTest:true,depthWrite:false})
 );
 aimMarker.rotation.x=-Math.PI/2;
@@ -264,19 +271,16 @@ function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
 
 function getAimFromPointer(cx,cy){
   if(!goalHitMesh) return null;
-  ndc.x=(cx/W)*2-1; ndc.y=-(cy/H)*2+1;
+  ndc.x=(cx/W)*2-1;
+  ndc.y=-(cy/H)*2+1;
   rc.setFromCamera(ndc,cam);
   const ints=rc.intersectObject(goalHitMesh,false);
   if(!ints||ints.length===0) return null;
-
   const wp=ints[0].point;
   const lp=goalObj ? goalObj.worldToLocal(wp.clone()) : wp.clone();
-
-  // clamp to goal local bounds
   lp.x=clamp(lp.x,goalLocalRect.xMin,goalLocalRect.xMax);
   lp.y=clamp(lp.y,goalLocalRect.yMin,goalLocalRect.yMax);
   lp.z=goalLocalRect.z;
-
   const w=goalObj ? goalObj.localToWorld(lp.clone()) : new THREE.Vector3(lp.x, lp.y+GOAL_YOF, TARGET_Z_WORLD);
   return {world:w, local:lp};
 }
@@ -287,30 +291,25 @@ const fbxLoader=new FBXLoader(manager);
 function loadFBX(url){
   return new Promise(resolve=>{
     fbxLoader.load(url,obj=>resolve(obj),undefined,err=>{
-      console.error('[FBX] Yuklenemedi:',url,err?.message||err);
+      console.error('[FBX] Yüklenemedi:',url,err?.message||err);
       resolve(null);
     });
   });
 }
 
-// FBX modelini normalize et: hedef yukseklige scale, ayaklari y=0'a getir
 function normalizeChar(obj, targetH){
-  // FBX Mixamo modelleri cm cinsinden gelir (100x buyuk)
-  // Once bbox olc, sonra scale ayarla
   obj.updateMatrixWorld(true);
   const box=new THREE.Box3().setFromObject(obj);
   const sz=new THREE.Vector3();
   box.getSize(sz);
-  if(sz.y<0.001){console.warn('normalizeChar: sifir yukseklik');return;}
+  if(sz.y<0.001){ console.warn('normalizeChar: sifir yukseklik'); return; }
   const s=targetH/sz.y;
   obj.scale.setScalar(s);
   obj.updateMatrixWorld(true);
-  // Ayaklari y=0'a getir
   const b2=new THREE.Box3().setFromObject(obj);
   obj.position.y-=b2.min.y;
 }
 
-/** FBX: tek yüzey / sRGB doku — bazı modellerde karakter görünmez kalıyor */
 function applyFbxCharacterMaterials(root){
   root.traverse((o)=>{
     if(!o.isMesh) return;
@@ -320,7 +319,6 @@ function applyFbxCharacterMaterials(root){
       if(m.map) m.map.colorSpace=THREE.SRGBColorSpace;
       if(m.emissiveMap) m.emissiveMap.colorSpace=THREE.SRGBColorSpace;
       m.side=THREE.DoubleSide;
-      // FBX'ten gelen düşük opacity / transparent bayraklarını sıfırla
       m.transparent=false;
       m.opacity=1.0;
       m.alphaTest=0;
@@ -330,33 +328,18 @@ function applyFbxCharacterMaterials(root){
   });
 }
 
-// ── KARAKTER YAPISI ──
-// Her FBX dosyasi kendi model+mixer+action ikilisiyle calisir
-// Animasyon gecisi: onceki model gizlenir, yeni model gosterilir
-
-// (moved earlier) arda/keeper/goalObj/ballObj
-
 function playAnim(ch, name){
   if(!ch || !ch.models[name]) return;
   if(ch.current===name) return;
-
-  // Onceki modeli gizle
   const prev=ch.models[ch.current];
   if(prev) prev.visible=false;
-
-  // Onceki action'i durdur
   const prevAct=ch.actions[ch.current];
   if(prevAct) prevAct.stop();
-
-  // Yeni modeli goster
   const next=ch.models[name];
   if(next) next.visible=true;
-
   ch.current=name;
   const nextAct=ch.actions[name];
-  if(nextAct){
-    nextAct.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
-  }
+  if(nextAct){ nextAct.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play(); }
 }
 
 function tickChar(ch, dt){
@@ -376,10 +359,9 @@ const _tmpV=new THREE.Vector3();
 const _tmpV2=new THREE.Vector3();
 let kAnim={phase:'idle',t:0,sx:0,tx:0,side:'center',yN:0};
 const K_REACT_DELAY=0.14;
-const PRE_SHOT_DELAY=0.0;      // hedef secilince kick hemen baslar
-const KICK_CONTACT_DELAY=0.92; // animasyon ~1s → sonuna yakın top ucar
+const PRE_SHOT_DELAY=0.0;
+const KICK_CONTACT_DELAY=0.92;
 let shotTarget=null;
-const DEBUG_SHOT=false;
 let pendingShotTimer=null;
 let pendingKickTimer=null;
 
@@ -394,7 +376,6 @@ function getKeeperCatchAnchor(){
   model.traverse(o=>{
     if(!o || !o.isBone || !o.name) return;
     const n=o.name.toLowerCase();
-    // Mixamo: mixamorigRightHand / LeftHand etc.
     if(n.includes('righthand') || n.includes('lefthand')) best=o;
     if(!best && (n.includes('hand') || n.includes('wrist') || n.includes('forearm') || n.includes('spine2') || n.includes('chest'))) best=o;
   });
@@ -419,29 +400,35 @@ function attachBallToKeeper(){
   detachBallToScene();
   ballCatchAnchor=anchor;
   anchor.add(ballMesh);
-
-  // Offset: anim tipine gore kabaca elde/goguste dursun (bone yoksa modele gore calisir)
   const animName = (keeper.current||'').toLowerCase();
   let ox=0, oy=1.05, oz=0.28;
   if(animName.includes('low')){ oy=0.58; oz=0.22; ox=animName.includes('right')?0.18:-0.18; }
   else if(animName.includes('dive')){ oy=0.85; oz=0.26; ox=animName.includes('right')?0.22:-0.22; }
   else if(animName.includes('sidestep')){ oy=1.0; oz=0.32; ox=0.10; }
-
   ballMesh.position.set(ox,oy,oz);
   ballMesh.rotation.set(0,0,0);
   ballAnim.on=false;
   ballCaught=true;
 }
 
-// ── TARGETING (tam 3D raycast) ──
 function updateAimVisual(cx,cy){
-  if(!gameActive||!canShoot){ aim.inside=false; aimMarker.material.opacity=0; canvas.style.cursor='default'; return; }
+  if(!gameActive||!canShoot){
+    aim.inside=false;
+    aimMarker.material.opacity=0;
+    canvas.style.cursor='default';
+    return;
+  }
   const a=getAimFromPointer(cx,cy);
-  if(!a){ aim.inside=false; aimMarker.material.opacity=0; canvas.style.cursor='default'; return; }
+  if(!a){
+    aim.inside=false;
+    aimMarker.material.opacity=0;
+    canvas.style.cursor='default';
+    return;
+  }
   aim.inside=true;
   aim.world.copy(a.world);
   aim.local.copy(a.local);
-  aimMarker.position.set(a.world.x,0.012,a.world.z); // yere projekte marker
+  aimMarker.position.set(a.world.x,0.012,a.world.z);
   aimMarker.material.opacity=0.55;
   canvas.style.cursor='crosshair';
 }
@@ -449,13 +436,12 @@ function updateAimVisual(cx,cy){
 function pickKAnim(side,yN){
   const high=yN>0.66;
   const low=yN<0.33;
-  // Mobilde yalnızca idle+dive_left+dive_right yüklü → bunlara map'le
   if(_mob){
     if(side==='center') return 'idle';
     return side==='left'?'dive_left':'dive_right';
   }
   if(high) return side==='left'?'dive_left':(side==='right'?'dive_right':(Math.random()<0.5?'dive_left':'dive_right'));
-  if(low)  return side==='left'?'save_low_left':(side==='right'?'save_low_right':'save_low_left');
+  if(low) return side==='left'?'save_low_left':(side==='right'?'save_low_right':'save_low_left');
   if(side==='center') return Math.random()<0.5?'sidestep_left':'sidestep_right';
   return side==='left'?'dive_left':'dive_right';
 }
@@ -464,18 +450,13 @@ function shootAt(worldTarget, localTarget){
   if(!ready||!canShoot||!gameActive) return;
   canShoot=false;
   document.getElementById('banner').style.display='none';
-  // hedef noktasi secildi — kisa marker goster
   aimMarker.material.opacity=0.75;
-
-  // clamp again for safety
   const lp=localTarget ? localTarget.clone() : (goalObj?goalObj.worldToLocal(worldTarget.clone()):worldTarget.clone());
   lp.x=clamp(lp.x,goalLocalRect.xMin,goalLocalRect.xMax);
   lp.y=clamp(lp.y,goalLocalRect.yMin,goalLocalRect.yMax);
   lp.z=goalLocalRect.z;
-  // worldTarget zaten goal plane uzerinde + clamped geliyor; onu dogrudan kullan (mapping drift olmasin)
   const target=worldTarget ? worldTarget.clone() : (goalObj ? goalObj.localToWorld(lp.clone()) : new THREE.Vector3(lp.x, lp.y+GOAL_YOF, TARGET_Z_WORLD));
   shotTarget=target.clone();
-
   const goalCx=(goalRect.xMin+goalRect.xMax)/2;
   const dx=target.x-goalCx;
   const halfW=(goalRect.xMax-goalRect.xMin)/2;
@@ -484,48 +465,27 @@ function shootAt(worldTarget, localTarget){
   let side='center';
   if(dx<-0.35) side='left';
   else if(dx>0.35) side='right';
-
   const yN=(lp.y-goalLocalRect.yMin)/Math.max(0.01,(goalLocalRect.yMax-goalLocalRect.yMin));
-
-  // Zorluk dengesi: hedeflenen sut basina gol olasiligi ~0.2466 (≈ %24.7)
-  // (5 sutta >=3 gol kazanma olasiligi ≈ %10)
-  // Daha kolay: taban gol olasiligi arttirildi
   const pGoalBase = 0.44;
-  const cornerScore = clamp(Math.abs(dx)/Math.max(0.001, halfW), 0, 1); // 0 merkez, 1 kose
-  const heightScore = clamp(yN, 0, 1); // 0 alt, 1 ust
-  // Kullanicinin kose/ust tercihine kucuk odul, toplam ortalama pGoalBase etrafinda kalir
-  const pGoal = clamp(
-    pGoalBase + 0.07*(cornerScore-0.5) + 0.05*(heightScore-0.5),
-    0.18,
-    0.62
-  );
+  const cornerScore = clamp(Math.abs(dx)/Math.max(0.001, halfW), 0, 1);
+  const heightScore = clamp(yN, 0, 1);
+  const pGoal = clamp(pGoalBase + 0.07*(cornerScore-0.5) + 0.05*(heightScore-0.5), 0.18, 0.62);
   const saved = Math.random() > pGoal;
-
-  // Eski timer'lari temizle (spam tap/click)
   if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
   if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
-
-  // 1) hedef secildi → ~1s sonra kick baslat
   pendingShotTimer=setTimeout(()=>{
     playAnim(striker,'kick');
-
-    // 2) kick temas aninda topu firlat + kaleciyi reaksiyona sok
     pendingKickTimer=setTimeout(()=>{
-      // keeper her zaman ortadan baslar (teleport yok)
       if(keeper){
         keeper.root.position.x=0;
         keeper.root.position.y=0;
         kAnim={phase:'react',t:0,sx:0,tx:diveX,side,yN};
       }
-
       const p0=ballMesh.position.clone();
       const p2=target.clone();
       const p1=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
       p1.y+=2.0+Math.random()*0.4;
       ballAnim={on:true,t:0,dur:0.55,p0,p1,p2};
-      if(DEBUG_SHOT){
-        console.log('[shot] target',shotTarget,'ballStart',p0,'dir',new THREE.Vector3().subVectors(p2,p0).normalize());
-      }
       setTimeout(()=>land(saved,target),560);
     }, Math.round(KICK_CONTACT_DELAY*1000));
   }, Math.round(PRE_SHOT_DELAY*1000));
@@ -537,17 +497,15 @@ function land(saved,wt){
   const wv=wt.clone().project(cam);
   const px=(wv.x*0.5+0.5)*W, py=(-wv.y*0.5+0.5)*H;
   if(!saved){
-    goals++;document.getElementById('sGoal').textContent=goals;
+    goals++; document.getElementById('sGoal').textContent=goals;
     if(dot)dot.classList.add('goal');
-    spawnP(px,py);spawnC(px,py-H*0.06);
+    spawnP(px,py); spawnC(px,py-H*0.06);
     showRes(true);
   }else{
-    // SAVE: topu world-space'te dondurmak yerine kaleciye bagla (caught) ya da sektir (deflect)
-    const caught = Math.random() < 0.65; // basit ayrim: caught vs deflect
+    const caught = Math.random() < 0.65;
     if(caught && keeper){
       attachBallToKeeper();
     }else if(ballMesh){
-      // Deflection/parry: kisa bir sekme animasyonu (kalede asili kalmasin)
       detachBallToScene();
       const p0=ballMesh.position.clone();
       const dir=new THREE.Vector3().subVectors(p0, new THREE.Vector3(0,1.0,GZ+0.55)).normalize();
@@ -558,7 +516,7 @@ function land(saved,wt){
       p1.y+=0.35;
       ballAnim={on:true,t:0,dur:0.28,p0,p1,p2};
     }
-    misses++;document.getElementById('sMiss').textContent=misses;
+    misses++; document.getElementById('sMiss').textContent=misses;
     if(dot)dot.classList.add('miss');
     showRes(false);
   }
@@ -588,16 +546,13 @@ function showRes(ok){
       playAnim(keeper,'idle');
     }
     if(shots>=TOTAL) setTimeout(showFinal,450);
-    else{canShoot=true;document.getElementById('banner').style.display='';}
+    else{ canShoot=true; document.getElementById('banner').style.display=''; }
   },1600);
 }
 
 function showFinal(){
   const tgIdEarly = getTgId();
-  if(tgIdEarly){
-    try{ localStorage.setItem('penalty_done_'+tgIdEarly,'1'); }catch(e){}
-  }
-  // HUD tek kaynak: global goals ile tutarsizlik olmasin
+  if(tgIdEarly){ try{ localStorage.setItem('penalty_done_'+tgIdEarly,'1'); }catch(e){} }
   const goalsHud = parseInt(document.getElementById('sGoal')?.textContent || '0', 10) || goals;
   const pct=goalsHud/TOTAL;
   const t=document.getElementById('fTrophy');
@@ -607,41 +562,32 @@ function showFinal(){
   if(fs) fs.textContent=goalsHud+'/'+TOTAL+' GOL';
   const won = goalsHud >= 3;
   if(won){
-    if(t) t.textContent = '';
-    if(ti){ ti.textContent = 'KAZANDIN!'; ti.style.color = '#00E676'; }
-    if(m) m.textContent = pct===1 ? 'Mukemmel performans!' : 'Tebrikler! Kazandin.';
+    if(t) t.textContent='🏆';
+    if(ti){ ti.textContent='KAZANDIN!'; ti.style.color='#00E676'; }
+    if(m) m.textContent=pct===1?'Mükemmel performans!':'Tebrikler! Kazandın.';
   }else{
-    if(t) t.textContent = '';
-    if(ti){ ti.textContent = 'KAYBETTİN!'; ti.style.color = '#FF5252'; }
-    if(m) m.textContent = 'Bu sefer kaleci kazandi!';
+    if(t) t.textContent='😤';
+    if(ti){ ti.textContent='KAYBETTİN!'; ti.style.color='#FF5252'; }
+    if(m) m.textContent='Bu sefer kaleci kazandı!';
   }
   document.getElementById('final').classList.add('show');
   gameActive=false;
   spawnC(W/2,H*0.35);
-
-  const score = goalsHud + '/' + TOTAL;
-
-  sendPenaltyResult({
-    goals: goalsHud,
-    won,
-    score,
-    goalsHud,
-    total: TOTAL,
-  });
-
+  const score = goalsHud+'/'+TOTAL;
+  sendPenaltyResult({ goals: goalsHud, won, score, goalsHud, total: TOTAL });
   const btnReplay=document.querySelector('#final .btnP');
   if(btnReplay && getTgId()){ btnReplay.style.display='none'; }
 }
 
 function resetGame(){
   if(isPenaltyLocked()) return;
-  goals=0;misses=0;shots=0;canShoot=true;gameActive=true;
+  goals=0; misses=0; shots=0; canShoot=true; gameActive=true;
   document.getElementById('sGoal').textContent='0';
   document.getElementById('sMiss').textContent='0';
   document.getElementById('sRemain').textContent=TOTAL;
   document.getElementById('final').classList.remove('show');
   document.getElementById('banner').style.display='';
-  parts=[];confs=[];buildDots();
+  parts=[]; confs=[]; buildDots();
   if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
   if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
   if(ballMesh){
@@ -660,29 +606,21 @@ window.resetGame=resetGame;
 
 window.openBet=function(){
   const url='https://t2m.io/guncelpusulabet';
-  const t = getTg();
-  try{
-    if(t && t.openLink) t.openLink(url);
-    else window.open(url,'_blank','noopener');
-  }catch(e){
-    window.open(url,'_blank','noopener');
-  }
+  const t=getTg();
+  try{ if(t&&t.openLink) t.openLink(url); else window.open(url,'_blank','noopener'); }
+  catch(e){ window.open(url,'_blank','noopener'); }
 };
-
 window.openPusulaTelegram=function(){
   const url='https://t.me/pusulasocial';
-  const t = getTg();
-  try{
-    if(t && t.openTelegramLink) t.openTelegramLink(url);
-    else window.open(url,'_blank','noopener');
-  }catch(e){
-    window.open(url,'_blank','noopener');
-  }
+  const t=getTg();
+  try{ if(t&&t.openTelegramLink) t.openTelegramLink(url); else window.open(url,'_blank','noopener'); }
+  catch(e){ window.open(url,'_blank','noopener'); }
 };
 
-// ── PARTIKUL ──
-function spawnP(cx,cy){for(let i=0;i<32;i++){const a=Math.random()*Math.PI*2,s=1.5+Math.random()*5;parts.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,decay:0.02+Math.random()*0.02,r:2+Math.random()*5,col:Math.random()<0.5?'#00E676':'#FFD700'});}}
-function spawnC(cx,cy){for(let i=0;i<70;i++){const a=(Math.random()-0.5)*Math.PI*1.5-Math.PI/2,s=4+Math.random()*11;confs.push({x:cx,y:cy,vx:Math.cos(a)*s+(Math.random()-0.5)*4,vy:Math.sin(a)*s,w:4+Math.random()*8,h:3+Math.random()*5,rot:Math.random()*Math.PI*2,rotV:(Math.random()-0.5)*0.35,life:1,decay:0.008+Math.random()*0.008,col:CC[Math.floor(Math.random()*CC.length)]});}}
+// ── PARTİKÜL ──
+function spawnP(cx,cy){for(let i=0;i<(_mob?20:32);i++){const a=Math.random()*Math.PI*2,s=1.5+Math.random()*5;parts.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,decay:0.02+Math.random()*0.02,r:2+Math.random()*5,col:Math.random()<0.5?'#00E676':'#FFD700'});}}
+function spawnC(cx,cy){for(let i=0;i<(_mob?40:70);i++){const a=(Math.random()-0.5)*Math.PI*1.5-Math.PI/2,s=4+Math.random()*11;confs.push({x:cx,y:cy,vx:Math.cos(a)*s+(Math.random()-0.5)*4,vy:Math.sin(a)*s,w:4+Math.random()*8,h:3+Math.random()*5,rot:Math.random()*Math.PI*2,rotV:(Math.random()-0.5)*0.35,life:1,decay:0.008+Math.random()*0.008,col:CC[Math.floor(Math.random()*CC.length)]});}}
+
 function drawFx(){
   fctx.clearRect(0,0,W,H);
   for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.18;p.life-=p.decay;if(p.life<=0){parts.splice(i,1);continue;}fctx.globalAlpha=p.life;fctx.fillStyle=p.col;fctx.beginPath();fctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);fctx.fill();}
@@ -691,7 +629,16 @@ function drawFx(){
 }
 
 // ── INPUT ──
-function buildDots(){const cont=document.getElementById('dots');cont.innerHTML='';for(let i=0;i<TOTAL;i++){const d=document.createElement('div');d.className='dot';d.id='dot-'+i;cont.appendChild(d);}}
+function buildDots(){
+  const cont=document.getElementById('dots');
+  cont.innerHTML='';
+  for(let i=0;i<TOTAL;i++){
+    const d=document.createElement('div');
+    d.className='dot'; d.id='dot-'+i;
+    cont.appendChild(d);
+  }
+}
+
 canvas.addEventListener('mousemove',e=>{updateAimVisual(e.clientX,e.clientY);});
 canvas.addEventListener('click',e=>{
   if(!gameActive||!canShoot) return;
@@ -704,20 +651,34 @@ canvas.addEventListener('touchstart',e=>{
   const a=getAimFromPointer(t.clientX,t.clientY);
   if(a){ e.preventDefault(); shootAt(a.world,a.local); }
 },{passive:false});
-canvas.addEventListener('touchmove',e=>{ if(gameActive&&canShoot){ const t=e.touches[0]; updateAimVisual(t.clientX,t.clientY); }},{passive:true});
+canvas.addEventListener('touchmove',e=>{
+  if(gameActive&&canShoot){
+    const t=e.touches[0];
+    updateAimVisual(t.clientX,t.clientY);
+  }
+},{passive:true});
 
-// ── ANA DONGU ──
+// ── ANA DÖNGÜ — Mobilde 30fps cap ──
 let lastT=0;
+let _frameSkip=0;
 function loop(ts){
-  const dt=Math.min((ts-lastT)/1000,0.05);lastT=ts;
-
+  // Mobilde her 2 frame'de bir render (30fps) — GPU tasarrufu
+  if(_mob){
+    _frameSkip++;
+    if(_frameSkip % 2 === 0){
+      requestAnimationFrame(loop);
+      // Ama animasyon güncellemesini yine de yap (kayma olmaz)
+      const dt2=Math.min((ts-lastT)/1000,0.05); lastT=ts;
+      tickChar(striker,dt2); tickChar(keeper,dt2);
+      return;
+    }
+  }
+  const dt=Math.min((ts-lastT)/1000,0.05); lastT=ts;
   rdr.clear();
   rdr.render(bgScene,bgCam);
   rdr.clearDepth();
-
   tickChar(striker,dt);
   tickChar(keeper,dt);
-
   if(ballAnim.on&&ballMesh){
     ballAnim.t+=dt;
     const u=Math.min(ballAnim.t/ballAnim.dur,1),e=easeIO(u);
@@ -725,29 +686,24 @@ function loop(ts){
     ballMesh.position.x=(1-e)*(1-e)*p0.x+2*(1-e)*e*p1.x+e*e*p2.x;
     ballMesh.position.y=(1-e)*(1-e)*p0.y+2*(1-e)*e*p1.y+e*e*p2.y;
     ballMesh.position.z=(1-e)*(1-e)*p0.z+2*(1-e)*e*p1.z+e*e*p2.z;
-    ballMesh.rotation.x+=14*dt;ballMesh.rotation.z+=10*dt;
+    ballMesh.rotation.x+=14*dt; ballMesh.rotation.z+=10*dt;
     if(u>=1)ballAnim.on=false;
   }
-
   if(keeper){
     if(kAnim.phase==='react'){
       kAnim.t+=dt;
-      keeper.root.position.x=0;
-      keeper.root.position.y=0;
+      keeper.root.position.x=0; keeper.root.position.y=0;
       if(kAnim.t>=K_REACT_DELAY){
-        kAnim.phase='dive';
-        kAnim.t=0;
+        kAnim.phase='dive'; kAnim.t=0;
         playAnim(keeper, pickKAnim(kAnim.side,kAnim.yN));
       }
     }else if(kAnim.phase==='dive'){
       kAnim.t+=dt;
       const u=Math.min(kAnim.t/0.42,1),e=easeOut(u);
       keeper.root.position.x=kAnim.sx+(kAnim.tx-kAnim.sx)*e;
-      // Dalis yuksekligini sinirla (bar ustune cikmasin / ziplama abartmasin)
       keeper.root.position.y=Math.sin(u*Math.PI)*0.10;
       if(u>=1)kAnim.phase='hold';
     }else if(kAnim.phase==='hold'){
-      // Pozisyonu sabitle (idle bob'a dusup ziplama/floating yapmasin)
       keeper.root.position.y=0;
     }else if(kAnim.phase==='return'){
       kAnim.t+=dt;
@@ -760,7 +716,6 @@ function loop(ts){
       keeper.root.position.y=0;
     }
   }
-
   rdr.render(scene,cam);
   drawFx();
   requestAnimationFrame(loop);
@@ -771,9 +726,9 @@ const texLoader=new THREE.TextureLoader(manager);
 texLoader.setCrossOrigin('anonymous');
 
 async function boot(){
-  console.log('[boot] ASSET test=', ASSET('bg.png'));
+  console.log('[boot] Başlıyor... (mobil:', _mob, ')');
 
-  // BG — assets/bg.png (sayfa kökündeki assets/)
+  // BG texture
   try{
     bgTex=await new Promise((res,rej)=>texLoader.load(ASSET('bg.png'),res,undefined,rej));
     bgTex.colorSpace=THREE.SRGBColorSpace;
@@ -784,72 +739,56 @@ async function boot(){
     bgPlane.material.map=bgTex;
     bgPlane.material.needsUpdate=true;
     updateBgCover();
-  }catch(e){
-    console.error('[BG] Yuklenemedi',e);
-  }
+  }catch(e){ console.error('[BG] Yüklenemedi',e); }
 
-  // Top
+  // TOP — Mobilde düşük segment sayısı
   try{
-    // Yeni yapida top dokulari assets/ball/ altinda
     const bt=await new Promise((res,rej)=>texLoader.load(ASSET('ball/ball_texture.png'),res,undefined,rej));
     bt.colorSpace=THREE.SRGBColorSpace;
+    // Mobilde 16x16 segment yeterli (32x32 = 4x daha fazla vertex)
+    const ballSegments = _mob ? 16 : 32;
     ballMesh=new THREE.Mesh(
-      new THREE.SphereGeometry(BALL_R,32,32),
+      new THREE.SphereGeometry(BALL_R, ballSegments, ballSegments),
       new THREE.MeshStandardMaterial({map:bt,roughness:0.35,metalness:0.05})
     );
     ballMesh.position.set(0.12,BALL_R,PENALTY_Z+0.08);
     scene.add(ballMesh);
-  }catch(e){console.error('[Ball.png] Yuklenemedi',e);}
+  }catch(e){ console.error('[Ball.png] Yüklenemedi',e); }
 
-  // Opsiyonel: ball.fbx varsa png topun yerine onu kullan (mobilde atla)
-  try{
-    if(_mob) throw new Error('mobile:skip');
-    const bfbx=await loadFBX(ASSET('ball/ball_texture.fbx'));
-    if(bfbx){
-      bfbx.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; }});
-      bfbx.updateMatrixWorld(true);
-      const box=new THREE.Box3().setFromObject(bfbx);
-      const sz=new THREE.Vector3(); box.getSize(sz);
-      const maxD=Math.max(sz.x,sz.y,sz.z);
-      if(maxD>0.0001){
-        const s=(BALL_R*2)/maxD;
-        bfbx.scale.setScalar(s);
+  // Ball FBX sadece masaüstünde
+  if(!_mob){
+    try{
+      const bfbx=await loadFBX(ASSET('ball/ball_texture.fbx'));
+      if(bfbx){
+        bfbx.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; }});
+        bfbx.updateMatrixWorld(true);
+        const box=new THREE.Box3().setFromObject(bfbx);
+        const sz=new THREE.Vector3(); box.getSize(sz);
+        const maxD=Math.max(sz.x,sz.y,sz.z);
+        if(maxD>0.0001){ bfbx.scale.setScalar((BALL_R*2)/maxD); }
+        bfbx.position.set(0.12,BALL_R,PENALTY_Z+0.08);
+        scene.add(bfbx); ballObj=bfbx;
+        if(ballMesh) scene.remove(ballMesh);
+        ballMesh=bfbx;
+        console.log('[Ball.fbx] yüklendi');
       }
-      bfbx.position.set(0.12,BALL_R,PENALTY_Z+0.08);
-      scene.add(bfbx);
-      ballObj=bfbx;
-      // Animasyon kodu ballMesh uzerinden calisiyor; FBX geldiyse onu aktif top yap
-      if(ballMesh) scene.remove(ballMesh);
-      ballMesh=bfbx;
-      console.log('[Ball.fbx] yüklendi');
-    }
-  }catch(e){
-    console.warn('[Ball.fbx] Yok/hatali (opsiyonel)',e?.message||e);
+    }catch(e){ console.warn('[Ball.fbx] Opsiyonel, atlandı'); }
   }
 
-  // ── STRIKER FBX ── (mobilde bellek patlamasını önlemek için sıralı yükle)
+  // ── STRİKER FBX — Sıralı yükle (mobil bellek spike önlemi) ──
   const idleUrl=ASSET(strikerIdleRel);
   const kickUrl=ASSET(strikerKickRel);
   let strikerIdle, strikerKick;
-  if(_mob){
-    strikerIdle = await loadFBX(idleUrl);
-    strikerKick  = await loadFBX(kickUrl);
-  } else {
-    [strikerIdle, strikerKick] = await Promise.all([loadFBX(idleUrl), loadFBX(kickUrl)]);
-  }
-
-  if(!strikerIdle && !strikerKick){
-    console.warn('[Striker] FBX yüklenemedi:', idleUrl, kickUrl);
-  }
+  // Hem mobil hem masaüstü sıralı yükle — çakışan FBX yükleme bellek spike yapar
+  strikerIdle = await loadFBX(idleUrl);
+  strikerKick = await loadFBX(kickUrl);
 
   if(strikerIdle||strikerKick){
     const root=new THREE.Group();
-    root.rotation.y=Math.PI; // kameraya arkasiyla
+    root.rotation.y=Math.PI;
     root.renderOrder=10;
     scene.add(root);
     striker={root, models:{}, mixers:{}, actions:{}, current:''};
-
-    // Idle modeli
     if(strikerIdle){
       normalizeChar(strikerIdle, ARDA_TARGET_H);
       applyFbxCharacterMaterials(strikerIdle);
@@ -861,13 +800,10 @@ async function boot(){
       const clipIdle=strikerIdle.animations?.[0];
       if(clipIdle){
         const act=mxIdle.clipAction(clipIdle);
-        act.setLoop(THREE.LoopRepeat,Infinity);
-        act.play();
+        act.setLoop(THREE.LoopRepeat,Infinity).play();
         striker.actions.idle=act;
       }
     }
-
-    // Kick modeli
     if(strikerKick){
       normalizeChar(strikerKick, ARDA_TARGET_H);
       applyFbxCharacterMaterials(strikerKick);
@@ -884,37 +820,26 @@ async function boot(){
         striker.actions.kick=act;
       }
     }
-
-    if(striker.models.idle){
-      striker.current='idle';
-    }else if(striker.models.kick){
-      striker.current='kick';
-      if(strikerKick) strikerKick.visible=true;
-      if(striker.actions.kick) striker.actions.kick.play();
-    }else{
-      striker.current='';
-    }
-
-    // Striker pozisyonu — penalti noktasi onunde
-    // Sağ ayaklı oyuncu: topun solunda durur (x negatif), sağ ayağı topun üzerinden geçer
+    striker.current = striker.models.idle ? 'idle' : 'kick';
+    if(striker.current==='kick' && strikerKick){ strikerKick.visible=true; if(striker.actions.kick) striker.actions.kick.play(); }
     root.position.set(-0.20,0,PENALTY_Z+1.60);
-    console.log('[Striker] hazir, actions:',Object.keys(striker.actions));
+    console.log('[Striker] hazır');
   }
 
-  // ── KALECI FBX ──
-  // Mobilde yalnızca 3 animasyon: 7×14MB=98MB → 3×14MB=42MB
+  // ── KALECİ FBX ──
+  // Mobilde 3 animasyon, masaüstünde 7 animasyon
   const keeperFiles= _mob ? [
-    ['idle',       ASSET('keeper/idle.fbx'),       THREE.LoopRepeat],
-    ['dive_left',  ASSET('keeper/dive_left.fbx'),  THREE.LoopOnce],
-    ['dive_right', ASSET('keeper/dive_right.fbx'), THREE.LoopOnce],
+    ['idle',       ASSET('keeper/idle.fbx'),           THREE.LoopRepeat],
+    ['dive_left',  ASSET('keeper/dive_left.fbx'),      THREE.LoopOnce],
+    ['dive_right', ASSET('keeper/dive_right.fbx'),     THREE.LoopOnce],
   ] : [
-    ['idle',          ASSET('keeper/idle.fbx'),           THREE.LoopRepeat],
-    ['dive_left',     ASSET('keeper/dive_left.fbx'),      THREE.LoopOnce],
-    ['dive_right',    ASSET('keeper/dive_right.fbx'),     THREE.LoopOnce],
-    ['save_low_left', ASSET('keeper/save_low_left.fbx'),  THREE.LoopOnce],
-    ['save_low_right',ASSET('keeper/save_low_right.fbx'), THREE.LoopOnce],
-    ['sidestep_left', ASSET('keeper/sidestep_left.fbx'),  THREE.LoopOnce],
-    ['sidestep_right',ASSET('keeper/sidestep_right.fbx'), THREE.LoopOnce],
+    ['idle',         ASSET('keeper/idle.fbx'),          THREE.LoopRepeat],
+    ['dive_left',    ASSET('keeper/dive_left.fbx'),     THREE.LoopOnce],
+    ['dive_right',   ASSET('keeper/dive_right.fbx'),    THREE.LoopOnce],
+    ['save_low_left',  ASSET('keeper/save_low_left.fbx'),  THREE.LoopOnce],
+    ['save_low_right', ASSET('keeper/save_low_right.fbx'), THREE.LoopOnce],
+    ['sidestep_left',  ASSET('keeper/sidestep_left.fbx'),  THREE.LoopOnce],
+    ['sidestep_right', ASSET('keeper/sidestep_right.fbx'), THREE.LoopOnce],
   ];
 
   const kRoot=new THREE.Group();
@@ -924,131 +849,97 @@ async function boot(){
   scene.add(kRoot);
   keeper={root:kRoot, models:{}, mixers:{}, actions:{}, current:''};
 
-  // Mobilde sıralı yükle (bellek spike'ını önle), masaüstünde paralel
-  let kLoaded;
-  if(_mob){
-    kLoaded=[];
-    for(const[,url] of keeperFiles) kLoaded.push(await loadFBX(url));
-  } else {
-    kLoaded=await Promise.all(keeperFiles.map(([,url])=>loadFBX(url)));
-  }
-
-  kLoaded.forEach((fbx,i)=>{
-    if(!fbx)return;
-    const[name,,loop]=keeperFiles[i];
+  // Sıralı yükle — hem mobil hem masaüstü (bellek spike önlemi)
+  for(let i=0;i<keeperFiles.length;i++){
+    const [name,url,loop] = keeperFiles[i];
+    const fbx = await loadFBX(url);
+    if(!fbx) continue;
     normalizeChar(fbx, KEEPER_TARGET_H);
-    fbx.visible=(name==='idle'); // sadece idle baslangicta gorunur
+    applyFbxCharacterMaterials(fbx);
+    fbx.visible=(name==='idle');
     kRoot.add(fbx);
     const mx=new THREE.AnimationMixer(fbx);
     const clip=fbx.animations[0];
     if(clip){
       const act=mx.clipAction(clip);
-      act.setLoop(loop,loop===THREE.LoopOnce?1:Infinity);
+      act.setLoop(loop, loop===THREE.LoopOnce?1:Infinity);
       if(loop===THREE.LoopOnce) act.clampWhenFinished=true;
       if(name==='idle') act.play();
       keeper.models[name]=fbx;
       keeper.mixers[name]=mx;
       keeper.actions[name]=act;
     }
-  });
-
+  }
   keeper.current='idle';
-  console.log('[Keeper] hazir, actions:',Object.keys(keeper.actions));
+  console.log('[Keeper] hazır, animasyonlar:', Object.keys(keeper.actions));
 
-  // Kaleciyi zemine oturt (pivot/foot problemi varsa bbox.min.y ile düzelt)
+  // Kaleci zemin ve boyut düzeltmesi
   try{
     const kb=new THREE.Box3().setFromObject(kRoot);
     kRoot.position.y-=kb.min.y;
-    // Bar altinda kalsin: fazla uzunsa scale down
     const kh=kb.max.y-kb.min.y;
     if(kh>GH*0.92){
       const s=(GH*0.90)/kh;
       kRoot.scale.multiplyScalar(s);
       kRoot.position.y=0;
     }
-  }catch(e){
-    console.warn('[Keeper] ground/scale ayari yapilamadi',e?.message||e);
-  }
+  }catch(e){ console.warn('[Keeper] ground/scale ayarı yapılamadı',e?.message||e); }
 
-  // GOAL FBX (opsiyonel — mobilde 27MB tasarruf için atla)
-  try{
-    if(_mob) throw new Error('mobile:skip');
-    const gfbx=await loadFBX(ASSET('goal/goal_texture.fbx'));
-    if(gfbx){
-      gfbx.traverse(o=>{ if(o.isMesh){ o.castShadow=false; o.receiveShadow=false; }});
-      gfbx.updateMatrixWorld(true);
-      const box=new THREE.Box3().setFromObject(gfbx);
-      const sz=new THREE.Vector3(); box.getSize(sz);
-      if(sz.x>0.0001 && sz.y>0.0001){
-        const sx=GW/sz.x;
-        const sy=GH/sz.y;
-        const s=Math.min(sx,sy);
-        gfbx.scale.setScalar(s);
+  // ── KALE FBX ──
+  // Mobilde: Basit çubuk kale (buildMobileGoal) → çok daha hızlı yüklenme
+  // Masaüstünde: goal.fbx
+  if(_mob){
+    // Basit geometri kale — anında yüklenir, tam kale görünümü
+    mobileGoalGroup = buildMobileGoal();
+    goalObj = null; // Raycast için world-space kullan
+    // goalRect ve goalLocalRect zaten default değerleriyle doğru ayarlı
+    ensureGoalHitMesh();
+    console.log('[Goal] Mobil basit kale oluşturuldu');
+  } else {
+    try{
+      const gfbx=await loadFBX(ASSET('goal/goal_texture.fbx'));
+      if(gfbx){
+        gfbx.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;}});
+        gfbx.updateMatrixWorld(true);
+        const box=new THREE.Box3().setFromObject(gfbx);
+        const sz=new THREE.Vector3(); box.getSize(sz);
+        if(sz.x>0.0001&&sz.y>0.0001){
+          const sx=GW/sz.x; const sy=GH/sz.y; const s=Math.min(sx,sy);
+          gfbx.scale.setScalar(s);
+        }
+        gfbx.position.set(0,0,GOAL_MODEL_Z);
+        gfbx.updateMatrixWorld(true);
+        const bGround=new THREE.Box3().setFromObject(gfbx);
+        gfbx.position.y-=bGround.min.y;
+        gfbx.updateMatrixWorld(true);
+        gfbx.renderOrder=2;
+        scene.add(gfbx);
+        goalObj=gfbx;
+        gfbx.updateMatrixWorld(true);
+        const b2=new THREE.Box3().setFromObject(gfbx);
+        goalRect={ xMin:b2.min.x, xMax:b2.max.x, yMin:Math.max(0,b2.min.y), yMax:Math.max(0.01,b2.max.y), z:TARGET_Z_WORLD };
+        const inv=new THREE.Matrix4().copy(gfbx.matrixWorld).invert();
+        const wMin=b2.min.clone().applyMatrix4(inv);
+        const wMax=b2.max.clone().applyMatrix4(inv);
+        const localZ=new THREE.Vector3(0,0,TARGET_Z_WORLD).applyMatrix4(inv).z;
+        const ws=new THREE.Vector3(); gfbx.getWorldScale(ws);
+        const localW=GW/Math.max(1e-6,ws.x);
+        const localH=GH/Math.max(1e-6,ws.y);
+        const xCenter=(wMin.x+wMax.x)*0.5;
+        const yBottom=Math.min(wMin.y,wMax.y);
+        goalLocalRect={ xMin:xCenter-localW*0.5, xMax:xCenter+localW*0.5, yMin:yBottom, yMax:yBottom+localH, z:localZ };
+        ensureGoalHitMesh();
+        console.log('[Goal.fbx] yüklendi');
       }
-      // Goal modeli: zemine oturt ve goal line'a hizala
-      gfbx.position.set(0,0,GOAL_MODEL_Z);
-      gfbx.updateMatrixWorld(true);
-      const bGround=new THREE.Box3().setFromObject(gfbx);
-      // Zemine oturt (minY = 0)
-      gfbx.position.y-=bGround.min.y;
-      gfbx.updateMatrixWorld(true);
-      gfbx.renderOrder=2;
-      scene.add(gfbx);
-      goalObj=gfbx;
-      console.log('[Goal.fbx] yüklendi');
-
-      // Goal bbox'una gore hedefleme rect'i (raycast clamp) guncelle.
-      gfbx.updateMatrixWorld(true);
-      const b2=new THREE.Box3().setFromObject(gfbx);
-      // World rect: raycast ve sut hedefleri icin (kale agzinin 2D projeksiyonu)
-      goalRect={
-        xMin:b2.min.x,
-        xMax:b2.max.x,
-        yMin:Math.max(0,b2.min.y),
-        yMax:Math.max(0.01,b2.max.y),
-        z:TARGET_Z_WORLD,
-      };
-
-      // Goal local rect: hedef plane (goalHitMesh) goal local uzayinda durur
-      const inv=new THREE.Matrix4().copy(gfbx.matrixWorld).invert();
-      const wMin=b2.min.clone().applyMatrix4(inv);
-      const wMax=b2.max.clone().applyMatrix4(inv);
-      const localZ=new THREE.Vector3(0,0,TARGET_Z_WORLD).applyMatrix4(inv).z;
-      // Not: Bazi modellerde bbox tabaninda alt kisim hedeflemeyi daraltabiliyor.
-      // Ancak modeli "0 merkezli" varsayamayiz. O yuzden local rect'i, modelin bbox merkezine
-      // oturtup GW/GH (world metre) hedef olculerini world scale'i hesaba katarak local'e ceviririz.
-      const ws=new THREE.Vector3();
-      gfbx.getWorldScale(ws);
-      const localW = GW / Math.max(1e-6, ws.x);
-      const localH = GH / Math.max(1e-6, ws.y);
-      const xCenter = (wMin.x + wMax.x) * 0.5;
-      const yBottom = Math.min(wMin.y, wMax.y); // model zaten zemine oturtuldu (minY ~ 0)
-      goalLocalRect={
-        xMin: xCenter - localW*0.5,
-        xMax: xCenter + localW*0.5,
-        yMin: yBottom,
-        yMax: yBottom + localH,
-        z: localZ,
-      };
-
-      ensureGoalHitMesh();
-    }
-  }catch(e){
-    console.warn('[Goal.fbx] Yok/hatali (opsiyonel)',e?.message||e);
+    }catch(e){ console.warn('[Goal.fbx] Opsiyonel, atlandı'); }
   }
 
   ready=true;
   gameActive=true;
   canShoot=true;
-  // Yukleme bar'i LoadingManager ile kapanir; burasi sadece fallback
-  if(!manager || !manager.isLoading){
-    const _ld=document.getElementById('loading');
-    if(_ld) _ld.classList.add('hide');
-  }
+  const _ld=document.getElementById('loading');
+  if(_ld) _ld.classList.add('hide');
   buildDots();
-  console.log('[boot] Hazir!');
-  if(!loopStarted){
-    loopStarted=true;
-    requestAnimationFrame(loop);
-  }
+  console.log('[boot] Hazır! ✅');
+  if(!loopStarted){ loopStarted=true; requestAnimationFrame(loop); }
 }
