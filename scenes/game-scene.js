@@ -4,9 +4,8 @@ import { sendPenaltyResult } from '../services/result-sender.js';
 import { store } from '../state/store.js';
 import { getTg, getTgId, isPenaltyLocked } from '../services/telegram.js';
 
-// Sayfa köküne göre assets/ (index.html ile aynı dizin); GitHub Pages / Telegram WebView uyumu
-const BASE = new URL('assets/', new URL('.', window.location.href)).href;
-const ASSET = (p) => new URL(p, BASE).href;
+// assets/ yolu her zaman index.html ile aynı dizinde; relative path en güvenli çözüm
+const ASSET = (p) => './assets/' + p;
 
 let strikerIdleRel = 'onuachu/onuachu_idle.fbx';
 let strikerKickRel = 'onuachu/onuachu_kick.fbx';
@@ -548,7 +547,7 @@ function showRes(ok){
     if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
     if(ballMesh){
       detachBallToScene();
-      ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);
+      ballMesh.position.set(0.12,BALL_R,PENALTY_Z+0.08);
       ballAnim.on=false;
     }
     playAnim(striker,'idle');
@@ -615,7 +614,7 @@ function resetGame(){
   if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
   if(ballMesh){
     detachBallToScene();
-    ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);
+    ballMesh.position.set(0.12,BALL_R,PENALTY_Z+0.08);
     ballAnim.on=false;
   }
   playAnim(striker,'idle');
@@ -740,7 +739,7 @@ const texLoader=new THREE.TextureLoader(manager);
 texLoader.setCrossOrigin('anonymous');
 
 async function boot(){
-  console.log('[boot] BASE=',BASE);
+  console.log('[boot] ASSET test=', ASSET('bg.png'));
 
   // BG — assets/bg.png (sayfa kökündeki assets/)
   try{
@@ -766,7 +765,7 @@ async function boot(){
       new THREE.SphereGeometry(BALL_R,32,32),
       new THREE.MeshStandardMaterial({map:bt,roughness:0.35,metalness:0.05})
     );
-    ballMesh.position.set(0,BALL_R,PENALTY_Z+0.08);
+    ballMesh.position.set(0.12,BALL_R,PENALTY_Z+0.08);
     scene.add(ballMesh);
   }catch(e){console.error('[Ball.png] Yuklenemedi',e);}
 
@@ -783,7 +782,7 @@ async function boot(){
         const s=(BALL_R*2)/maxD;
         bfbx.scale.setScalar(s);
       }
-      bfbx.position.set(0,BALL_R,PENALTY_Z+0.08);
+      bfbx.position.set(0.12,BALL_R,PENALTY_Z+0.08);
       scene.add(bfbx);
       ballObj=bfbx;
       // Animasyon kodu ballMesh uzerinden calisiyor; FBX geldiyse onu aktif top yap
@@ -861,8 +860,8 @@ async function boot(){
     }
 
     // Striker pozisyonu — penalti noktasi onunde
-    // Arda topun arkasinda (kamera tarafinda), penalti setup hissi: topun 1.6m gerisinde
-    root.position.set(0.15,0,PENALTY_Z+1.60);
+    // Sağ ayaklı oyuncu: topun solunda durur (x negatif), sağ ayağı topun üzerinden geçer
+    root.position.set(-0.20,0,PENALTY_Z+1.60);
     console.log('[Striker] hazir, actions:',Object.keys(striker.actions));
   }
 

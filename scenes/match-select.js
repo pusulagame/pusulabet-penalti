@@ -19,8 +19,8 @@ export function mountMatchSelect({ root, onSelect }) {
     card.type = 'button';
     card.className = 'match-card';
     card.dataset.matchId = m.id;
-    const homeLogo = new URL('../assets/' + m.homeTeam.logo, import.meta.url).href;
-    const awayLogo = new URL('../assets/' + m.awayTeam.logo, import.meta.url).href;
+    const homeLogo = './assets/' + m.homeTeam.logo;
+    const awayLogo = './assets/' + m.awayTeam.logo;
     card.innerHTML = `
       <div class="match-logos">
         <img src="${homeLogo}" alt="" class="team-logo" loading="lazy" />
