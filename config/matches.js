@@ -37,7 +37,7 @@ export const MATCHES = [
         id: 'asensio',
         name: 'Asensio',
         teamId: 'fb',
-        dir: 'players/asensio',
+        dir: 'asensio',
         idle: 'asensio_idle.fbx',
         kick: 'asensio_kick.fbx',
       },

@@ -4,7 +4,8 @@ import { sendPenaltyResult } from '../services/result-sender.js';
 import { store } from '../state/store.js';
 import { getTg, getTgId, isPenaltyLocked } from '../services/telegram.js';
 
-const BASE = new URL('../assets/', import.meta.url).href;
+// Sayfa köküne göre assets/ (index.html ile aynı dizin); GitHub Pages / Telegram WebView uyumu
+const BASE = new URL('assets/', new URL('.', window.location.href)).href;
 const ASSET = (p) => new URL(p, BASE).href;
 
 let strikerIdleRel = 'onuachu/onuachu_idle.fbx';
@@ -288,6 +289,21 @@ function normalizeChar(obj, targetH){
   obj.position.y-=b2.min.y;
 }
 
+/** FBX: tek yüzey / sRGB doku — bazı modellerde karakter görünmez kalıyor */
+function applyFbxCharacterMaterials(root){
+  root.traverse((o)=>{
+    if(!o.isMesh) return;
+    const mats=Array.isArray(o.material)?o.material:[o.material];
+    mats.forEach((m)=>{
+      if(!m) return;
+      if(m.map) m.map.colorSpace=THREE.SRGBColorSpace;
+      if(m.emissiveMap) m.emissiveMap.colorSpace=THREE.SRGBColorSpace;
+      m.side=THREE.DoubleSide;
+      m.needsUpdate=true;
+    });
+  });
+}
+
 // ── KARAKTER YAPISI ──
 // Her FBX dosyasi kendi model+mixer+action ikilisiyle calisir
 // Animasyon gecisi: onceki model gizlenir, yeni model gosterilir
@@ -295,7 +311,7 @@ function normalizeChar(obj, targetH){
 // (moved earlier) arda/keeper/goalObj/ballObj
 
 function playAnim(ch, name){
-  if(!ch || !ch.actions[name]) return;
+  if(!ch || !ch.models[name]) return;
   if(ch.current===name) return;
 
   // Onceki modeli gizle
@@ -310,9 +326,11 @@ function playAnim(ch, name){
   const next=ch.models[name];
   if(next) next.visible=true;
 
-  // Yeni action'i baslat
   ch.current=name;
-  ch.actions[name].reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
+  const nextAct=ch.actions[name];
+  if(nextAct){
+    nextAct.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
+  }
 }
 
 function tickChar(ch, dt){
@@ -724,7 +742,7 @@ texLoader.setCrossOrigin('anonymous');
 async function boot(){
   console.log('[boot] BASE=',BASE);
 
-  // BG (full-screen cover scene)
+  // BG — assets/bg.png (sayfa kökündeki assets/)
   try{
     bgTex=await new Promise((res,rej)=>texLoader.load(ASSET('bg.png'),res,undefined,rej));
     bgTex.colorSpace=THREE.SRGBColorSpace;
@@ -778,10 +796,16 @@ async function boot(){
   }
 
   // ── STRIKER FBX ──
+  const idleUrl=ASSET(strikerIdleRel);
+  const kickUrl=ASSET(strikerKickRel);
   const [strikerIdle, strikerKick] = await Promise.all([
-    loadFBX(ASSET(strikerIdleRel)),
-    loadFBX(ASSET(strikerKickRel)),
+    loadFBX(idleUrl),
+    loadFBX(kickUrl),
   ]);
+
+  if(!strikerIdle && !strikerKick){
+    console.warn('[Striker] FBX yüklenemedi:', idleUrl, kickUrl);
+  }
 
   if(strikerIdle||strikerKick){
     const root=new THREE.Group();
@@ -793,16 +817,17 @@ async function boot(){
     // Idle modeli
     if(strikerIdle){
       normalizeChar(strikerIdle, ARDA_TARGET_H);
+      applyFbxCharacterMaterials(strikerIdle);
       strikerIdle.visible=true;
       root.add(strikerIdle);
-      const mx=new THREE.AnimationMixer(strikerIdle);
-      const clip=strikerIdle.animations[0];
-      if(clip){
-        const act=mx.clipAction(clip);
+      striker.models.idle=strikerIdle;
+      const mxIdle=new THREE.AnimationMixer(strikerIdle);
+      striker.mixers.idle=mxIdle;
+      const clipIdle=strikerIdle.animations?.[0];
+      if(clipIdle){
+        const act=mxIdle.clipAction(clipIdle);
         act.setLoop(THREE.LoopRepeat,Infinity);
         act.play();
-        striker.models.idle=strikerIdle;
-        striker.mixers.idle=mx;
         striker.actions.idle=act;
       }
     }
@@ -810,23 +835,32 @@ async function boot(){
     // Kick modeli
     if(strikerKick){
       normalizeChar(strikerKick, ARDA_TARGET_H);
+      applyFbxCharacterMaterials(strikerKick);
       strikerKick.visible=false;
       root.add(strikerKick);
-      const mx=new THREE.AnimationMixer(strikerKick);
-      const clip=strikerKick.animations[0];
-      if(clip){
-        const act=mx.clipAction(clip);
+      striker.models.kick=strikerKick;
+      const mxKick=new THREE.AnimationMixer(strikerKick);
+      striker.mixers.kick=mxKick;
+      const clipKick=strikerKick.animations?.[0];
+      if(clipKick){
+        const act=mxKick.clipAction(clipKick);
         act.setLoop(THREE.LoopOnce,1);
         act.clampWhenFinished=true;
-        striker.models.kick=strikerKick;
-        striker.mixers.kick=mx;
         striker.actions.kick=act;
       }
     }
 
-    striker.current='idle';
+    if(striker.models.idle){
+      striker.current='idle';
+    }else if(striker.models.kick){
+      striker.current='kick';
+      if(strikerKick) strikerKick.visible=true;
+      if(striker.actions.kick) striker.actions.kick.play();
+    }else{
+      striker.current='';
+    }
 
-    // Arda pozisyonu — penalti noktasi onunde
+    // Striker pozisyonu — penalti noktasi onunde
     // Arda topun arkasinda (kamera tarafinda), penalti setup hissi: topun 1.6m gerisinde
     root.position.set(0.15,0,PENALTY_Z+1.60);
     console.log('[Striker] hazir, actions:',Object.keys(striker.actions));
