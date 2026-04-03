@@ -1,0 +1,108 @@
+/**
+ * Google Apps Script — Web uygulaması olarak yayınla (Herkes / Anonim erişim).
+ * game: "penalty" veya "penalti" (Mini App eski sürümler) kabul edilir.
+ * Bot JSON POST atarken bazen Content-Type boş gelebilir — gövde { ile başlıyorsa JSON parse edilir.
+ */
+
+function isPenaltyGame_(p) {
+  var g = String(p.game || '').toLowerCase();
+  return g === 'penalty' || g === 'penalti';
+}
+
+function appendPenaltyRow_(p) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var kazandi = 'EVET';
+  if (String(p.kazandi || '').toUpperCase() === 'HAYIR') kazandi = 'HAYIR';
+  if (p.won === false) kazandi = 'HAYIR';
+  if (p.won === true) kazandi = 'EVET';
+
+  var pb = p.pusulabet_username || p.pusulabet_kullanici || '';
+
+  sheet.appendRow([
+    p.tarih || new Date().toLocaleString('tr-TR'),
+    p.telegram_kullanici || '',
+    String(p.telegram_id || ''),
+    pb,
+    p.score || '',
+    String(p.goals !== undefined && p.goals !== null ? p.goals : '0'),
+    kazandi
+  ]);
+}
+
+function doGet(e) {
+  try {
+    var p = e.parameter || {};
+
+    if (!isPenaltyGame_(p)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'skipped' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    appendPenaltyRow_(p);
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: 'ok' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: 'error', msg: String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doPost(e) {
+  try {
+    var p = null;
+
+    if (e.postData && e.postData.contents) {
+      var raw = String(e.postData.contents);
+      var ct = String(e.postData.type || '').toLowerCase();
+
+      if (ct.indexOf('json') !== -1) {
+        p = JSON.parse(raw);
+      } else if (raw.trim().charAt(0) === '{') {
+        try {
+          p = JSON.parse(raw);
+        } catch (x) {
+          p = null;
+        }
+      } else if (ct.indexOf('x-www-form-urlencoded') !== -1) {
+        var pairs = {};
+        raw.split('&').forEach(function (pair) {
+          var kv = pair.split('=');
+          if (kv.length === 2) {
+            pairs[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1].replace(/\+/g, ' '));
+          }
+        });
+        p = pairs;
+      }
+    }
+
+    if (!p && e.parameter) {
+      p = e.parameter;
+    }
+
+    if (!p) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', msg: 'no payload' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (!isPenaltyGame_(p)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'skipped' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    appendPenaltyRow_(p);
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: 'ok' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: 'error', msg: String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "active": false,
+  "total_plays": 4,
+  "total_wins": 0,
+  "started_at": "2026-03-28T03:41:54.688108",
+  "games": {
+    "puzzle": {
+      "active": false,
+      "total_plays": 135,
+      "started_at": "2026-03-31T00:59:38.097414",
+      "players": [],
+      "test_mode": false
+    },
+    "penalty": {
+      "active": true,
+      "total_plays": 10,
+      "started_at": "2026-03-31T19:30:10.505175",
+      "players": [
+        {
+          "id": 8355860067,
+          "username": "brucew2",
+          "name": "Bruce",
+          "time": "19:26:27"
+        },
+        {
+          "id": 8355860067,
+          "username": "brucew2",
+          "name": "Bruce",
+          "time": "21:04:30"
+        },
+        {
+          "id": 8355860067,
+          "username": "brucew2",
+          "name": "Bruce",
+          "time": "21:19:43"
+        },
+        {
+          "id": 8355860067,
+          "username": "brucew2",
+          "name": "Bruce",
+          "time": "21:27:56"
+        },
+        {
+          "id": 8355860067,
+          "username": "brucew2",
+          "name": "Bruce",
+          "time": "21:35:36"
+        },
+        {
+          "id": 8355860067,
+          "username": "brucew2",
+          "name": "Bruce",
+          "time": "21:41:17"
+        },
+        {
+          "id": 8355860067,
+          "username": "brucew2",
+          "name": "Bruce",
+          "time": "22:06:54"
+        },
+        {
+          "id": 8355860067,
+          "username": "brucew2",
+          "name": "Bruce",
+          "time": "22:23:06"
+        },
+        {
+          "id": 8355860067,
+          "username": "brucew2",
+          "name": "Bruce",
+          "time": "22:37:32"
+        },
+        {
+          "id": 8277199409,
+          "username": "PusulaEtkinlik",
+          "name": "Pusula Etkinlik",
+          "time": "22:51:12"
+        }
+      ],
+      "test_mode": false,
+      "total_results": 0,
+      "total_wins": 0,
+      "results": []
+    }
+  }
+}
