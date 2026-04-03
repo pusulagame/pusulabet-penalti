@@ -59,6 +59,22 @@ const fctx=fx.getContext('2d');
 let W=innerWidth,H=innerHeight;
 
 const manager = new THREE.LoadingManager();
+
+// FBX dosyalarına gömülü Windows mutlak yolları (C:/Users/...) düzelt.
+// FBXLoader şunu üretir: "./assets/osimhen/C:/Users/.../Image_0.jpg"
+// → "./assets/osimhen/Image_0.jpg" olarak düzelt.
+manager.setURLModifier((url) => {
+  // "./assets/xxx/C:/..." veya "./assets/xxx/C:\..." kalıbını yakala
+  const m = url.match(/^(.*\/)([A-Za-z]:[/\\].+)$/);
+  if (m) {
+    const dir      = m[1]; // "./assets/osimhen/"
+    const winPath  = m[2].replace(/\\/g, '/');
+    const filename = winPath.split('/').pop();
+    return dir + filename; // "./assets/osimhen/Image_0.jpg"
+  }
+  return url;
+});
+
 function setLoadProgress(p){
   const pct=Math.round(clamp(p,0,1)*100);
   if(ldPct) ldPct.textContent=pct+'%';
@@ -298,6 +314,11 @@ function applyFbxCharacterMaterials(root){
       if(m.map) m.map.colorSpace=THREE.SRGBColorSpace;
       if(m.emissiveMap) m.emissiveMap.colorSpace=THREE.SRGBColorSpace;
       m.side=THREE.DoubleSide;
+      // FBX'ten gelen düşük opacity / transparent bayraklarını sıfırla
+      m.transparent=false;
+      m.opacity=1.0;
+      m.alphaTest=0;
+      m.depthWrite=true;
       m.needsUpdate=true;
     });
   });
