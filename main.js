@@ -1,7 +1,7 @@
 import { initTelegram } from './services/telegram.js';
 import { resetStore } from './state/store.js';
 import { mountMatchSelect } from './scenes/match-select.js';
-import { mountPlayerSelect } from './scenes/player-select.js';
+import { mountPlayerSelect, disposePreviews } from './scenes/player-select.js';
 
 initTelegram();
 
@@ -26,6 +26,9 @@ async function onPlayerStart(player) {
     gotoMatch();
     return;
   }
+  // ── Preview renderer'ı temizle — WebGL context / memory boşalt ──
+  disposePreviews();
+
   // ── Yükleniyor ekranını dynamic import'tan ÖNCE göster ──
   sceneMatch.hidden = true;
   scenePlayer.hidden = true;
