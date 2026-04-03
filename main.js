@@ -26,18 +26,20 @@ async function onPlayerStart(player) {
     gotoMatch();
     return;
   }
+  // ── Yükleniyor ekranını dynamic import'tan ÖNCE göster ──
+  sceneMatch.hidden = true;
+  scenePlayer.hidden = true;
+  const ld     = document.getElementById('loading');
+  const ldFill = document.getElementById('ldFill');
+  const ldPct  = document.getElementById('ldPct');
+  if (ld)     ld.classList.remove('hide');
+  if (ldFill) ldFill.style.width  = '0%';
+  if (ldPct)  ldPct.textContent   = '0%';
+
   const idle = `${player.dir}/${player.idle}`;
   const kick = `${player.dir}/${player.kick}`;
   const { setStrikerAssets, runPenaltyGame } = await import('./scenes/game-scene.js');
   setStrikerAssets(idle, kick);
-  sceneMatch.hidden = true;
-  scenePlayer.hidden = true;
-  const ld = document.getElementById('loading');
-  const ldFill = document.getElementById('ldFill');
-  const ldPct = document.getElementById('ldPct');
-  if (ld) ld.classList.remove('hide');
-  if (ldFill) ldFill.style.width = '0%';
-  if (ldPct) ldPct.textContent = '0%';
   await runPenaltyGame();
 }
 
