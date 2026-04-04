@@ -296,6 +296,57 @@ function loadFBXBg(url){
   });
 }
 
+/** Kale FBX: dünya ölçüsü (7.32×2.44m) + kale çizgisi Z — bootBg'de önce eksikti → dev ağ / yanlış konum */
+function applyGoalFbx(gfbx){
+  if(!gfbx) return;
+  if(goalObj){
+    scene.remove(goalObj);
+    goalObj=null;
+  }
+  gfbx.traverse((o)=>{ if(o.isMesh){ o.castShadow=false; o.receiveShadow=false; }});
+  gfbx.updateMatrixWorld(true);
+  const box0=new THREE.Box3().setFromObject(gfbx);
+  const sz=new THREE.Vector3();
+  box0.getSize(sz);
+  if(sz.x>0.0001 && sz.y>0.0001){
+    const sx=GW/sz.x;
+    const sy=GH/sz.y;
+    const s=Math.min(sx,sy);
+    gfbx.scale.setScalar(s);
+  }
+  gfbx.position.set(0,0,GOAL_MODEL_Z);
+  gfbx.updateMatrixWorld(true);
+  const bGround=new THREE.Box3().setFromObject(gfbx);
+  gfbx.position.y-=bGround.min.y;
+  gfbx.updateMatrixWorld(true);
+  gfbx.renderOrder=2;
+  scene.add(gfbx);
+  goalObj=gfbx;
+
+  gfbx.updateMatrixWorld(true);
+  const b2=new THREE.Box3().setFromObject(gfbx);
+  goalRect={
+    xMin:b2.min.x,
+    xMax:b2.max.x,
+    yMin:Math.max(0,b2.min.y),
+    yMax:Math.max(0.01,b2.max.y),
+    z:TARGET_Z_WORLD,
+  };
+  const inv=new THREE.Matrix4().copy(gfbx.matrixWorld).invert();
+  const wMin=b2.min.clone().applyMatrix4(inv);
+  const wMax=b2.max.clone().applyMatrix4(inv);
+  const localZ=new THREE.Vector3(0,0,TARGET_Z_WORLD).applyMatrix4(inv).z;
+  goalLocalRect={
+    xMin:Math.min(wMin.x,wMax.x),
+    xMax:Math.max(wMin.x,wMax.x),
+    yMin:Math.max(0,Math.min(wMin.y,wMax.y)),
+    yMax:Math.max(0.01,Math.max(wMin.y,wMax.y)),
+    z:localZ,
+  };
+  ensureGoalHitMesh();
+  console.log('[Goal.fbx] yerleştirildi (ölçek + Z)');
+}
+
 // FBX modelini normalize et: hedef yukseklige scale, ayaklari y=0'a getir
 function normalizeChar(obj, targetH){
   // FBX Mixamo modelleri cm cinsinden gelir (100x buyuk)
@@ -893,44 +944,11 @@ async function bootBg(){
     _addKeeperAnim(name,fbx,lt);
   }
 
-  // Goal FBX (masaüstü, opsiyonel)
-  if(!_mob){
-    try{
-      const gfbx=await loadFBXBg(ASSET('goal/goal_texture.fbx'));
-      if(gfbx){
-        gfbx.traverse(o=>{ if(o.isMesh){ o.castShadow=false; o.receiveShadow=false; }});
-        gfbx.updateMatrixWorld(true);
-        const box=new THREE.Box3().setFromObject(gfbx);
-        const bGround=new THREE.Box3().setFromObject(gfbx);
-        gfbx.position.y-=bGround.min.y;
-        gfbx.updateMatrixWorld(true);
-        gfbx.renderOrder=2;
-        scene.add(gfbx);
-        goalObj=gfbx;
-        const b2=new THREE.Box3().setFromObject(gfbx);
-        goalRect={
-          xMin:b2.min.x,xMax:b2.max.x,
-          yMin:Math.max(0,b2.min.y),yMax:Math.max(0.01,b2.max.y),
-          z:TARGET_Z_WORLD,
-        };
-        const inv=new THREE.Matrix4().copy(gfbx.matrixWorld).invert();
-        const wMin=b2.min.clone().applyMatrix4(inv);
-        const wMax=b2.max.clone().applyMatrix4(inv);
-        const localZ=new THREE.Vector3(0,0,TARGET_Z_WORLD).applyMatrix4(inv).z;
-        const ws=new THREE.Vector3(); gfbx.getWorldScale(ws);
-        const localW=GW/Math.max(1e-6,ws.x);
-        const localH=GH/Math.max(1e-6,ws.y);
-        const xCenter=(wMin.x+wMax.x)*0.5;
-        const yBottom=Math.min(wMin.y,wMax.y);
-        goalLocalRect={
-          xMin:xCenter-localW*0.5,xMax:xCenter+localW*0.5,
-          yMin:yBottom,yMax:yBottom+localH,z:localZ,
-        };
-        ensureGoalHitMesh();
-        console.log('[Goal.fbx] yüklendi (bg)');
-      }
-    }catch(e){ console.warn('[Goal.fbx] Arka plan hatası',e?.message||e); }
-  }
+  // Kale FBX — mobil + masaüstü (daha önce sadece masaüstünde ve ölçeksiz yükleniyordu)
+  try{
+    const gfbx=await loadFBXBg(ASSET('goal/goal_texture.fbx'));
+    if(gfbx) applyGoalFbx(gfbx);
+  }catch(e){ console.warn('[Goal.fbx] Arka plan hatası',e?.message||e); }
   console.log('[bootBg] Tamamlandı');
 }
 
