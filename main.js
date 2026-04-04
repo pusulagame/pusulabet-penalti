@@ -2,7 +2,7 @@ import { initTelegram } from './services/telegram.js';
 import { resetStore } from './state/store.js';
 import { mountMatchSelect } from './scenes/match-select.js';
 import { mountPlayerSelect, disposePreviews } from './scenes/player-select.js';
-import { startLoadingLogoCarousel, stopLoadingLogoCarousel } from './services/loading-logos.js';
+import { initLoadingMatchRows } from './services/loading-screen-ui.js';
 
 initTelegram();
 
@@ -39,6 +39,7 @@ async function onPlayerStart(player) {
   if (ld)     ld.classList.remove('hide');
   if (ldFill) ldFill.style.width  = '0%';
   if (ldPct)  ldPct.textContent   = '0%';
+  initLoadingMatchRows();
 
   // Mobil / WebView: overlay bir kare boyunca çizilsin, sonra ağır modül yüklensin
   await new Promise((r) => requestAnimationFrame(() => r()));
@@ -51,7 +52,7 @@ async function onPlayerStart(player) {
   try { _tg?.enableClosingConfirmation?.(); } catch(_) {}
 
   const { setStrikerAssets, runPenaltyGame } = await import('./scenes/game-scene.js');
-  setStrikerAssets(idle, kick);
+  setStrikerAssets(idle, kick, player.strikeTune);
   try {
     await runPenaltyGame();
   } catch(err) {
@@ -65,7 +66,6 @@ async function onPlayerStart(player) {
     if (ld)      ld.classList.add('hide');
     gotoMatch();
   } finally {
-    stopLoadingLogoCarousel();
     try { _tg?.disableClosingConfirmation?.(); } catch(_) {}
   }
 }
