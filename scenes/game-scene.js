@@ -102,24 +102,16 @@ function applyBallPenaltySpot() {
 function applyBallRestFromStrikerRoot() {
   applyBallPenaltySpot();
 }
-/** Kemik yoksa: kökü kabaca geri; X merkez */
+/** Kemik yoksa: önce yaw, sonra kabaca geri konum */
 function applyStrikerRootPlacementFallback() {
   if (!striker?.root) return;
+  striker.root.rotation.y = Math.PI + strikeTuneNum('strikerYaw', -0.28);
   striker.root.position.set(
     BALL_SPOT_X,
     0,
     BALL_SPOT_Z + STRIKER_START_OFFSET_Z + strikeTuneNum('rootOffsetZ', 0),
   );
-  striker.root.rotation.y = Math.PI + strikeTuneNum('strikerYaw', -0.28);
-}
-
-function updateStrikerMixersForAlign() {
-  if (!striker?.mixers) return;
-  Object.values(striker.mixers).forEach((mx) => {
-    try {
-      mx.update(1 / 60);
-    } catch (_) {}
-  });
+  striker.root.updateMatrixWorld(true);
 }
 
 /** Penaltı destek ayağı (sol / plant foot) — sağ ayak şut */
@@ -140,18 +132,18 @@ function getPlantFootBone(modelRoot) {
   return found;
 }
 
-/** `true` iken hizadan sonra Foot / Ball world (±~0.02 hedef) */
+/** Temas karesinde foot–top farkı (dx,dz ~0 hedef) */
 const DEBUG_PLANT_FOOT = false;
 
-/** Plant foot dünya XZ ≈ top; root geri hesaplanır */
-function alignStrikerToBall() {
+/** Kick yokken: yaw önce, idle kemik pozu (mixer ilerletilmez) + Z’de geri offset */
+function alignStrikerToBallIdleFallback() {
   if (!striker?.root) return;
-  updateStrikerMixersForAlign();
+  const yaw = Math.PI + strikeTuneNum('strikerYaw', -0.28);
+  striker.root.rotation.y = yaw;
   striker.root.updateMatrixWorld(true);
 
-  const model = striker.models?.idle || striker.models?.kick;
+  const model = striker.models?.idle;
   const foot = model ? getPlantFootBone(model) : null;
-
   if (!foot) {
     applyStrikerRootPlacementFallback();
     return;
@@ -161,22 +153,109 @@ function alignStrikerToBall() {
   const rx = _tmpV.x;
   const rz = _tmpV.z;
   foot.getWorldPosition(_tmpV);
-  const offX = _tmpV.x - rx;
-  const offZ = _tmpV.z - rz;
+  const dx = _tmpV.x - rx;
+  const dz = _tmpV.z - rz;
 
   striker.root.position.set(
-    BALL_SPOT_X - offX,
+    BALL_SPOT_X - dx,
     0,
-    BALL_SPOT_Z - offZ + STRIKER_START_OFFSET_Z + strikeTuneNum('rootOffsetZ', 0),
+    BALL_SPOT_Z - dz + STRIKER_START_OFFSET_Z + strikeTuneNum('rootOffsetZ', 0),
   );
-  striker.root.rotation.y = Math.PI + strikeTuneNum('strikerYaw', -0.28);
-
   striker.root.updateMatrixWorld(true);
+
   if (DEBUG_PLANT_FOOT && ballMesh) {
     foot.getWorldPosition(_tmpV);
-    console.log('Foot:', _tmpV.clone());
-    console.log('Ball:', ballMesh.position.clone());
+    console.log('ALIGN idle foot-ball dx=', (_tmpV.x - BALL_SPOT_X).toFixed(3));
+    console.log('ALIGN idle foot-ball dz=', (_tmpV.z - BALL_SPOT_Z).toFixed(3));
   }
+}
+
+/**
+ * Hizalama temas karesine göre: kick clip’i getKickContactDelaySec() anına alınır (mixer tek tick).
+ * Sıra: yaw → worldMatrix → kick time → mixer update → dx/dz → root position → kick reset/stop.
+ */
+function alignStrikerToBall() {
+  if (!striker?.root) return;
+
+  const yaw = Math.PI + strikeTuneNum('strikerYaw', -0.28);
+  const kickMx = striker.mixers?.kick;
+  const kickAct = striker.actions?.kick;
+  const kickModel = striker.models?.kick;
+
+  if (!kickMx || !kickAct || !kickModel) {
+    alignStrikerToBallIdleFallback();
+    return;
+  }
+
+  const clip =
+    typeof kickAct.getClip === 'function' ? kickAct.getClip() : kickAct._clip;
+  const duration =
+    clip && Number.isFinite(clip.duration) && clip.duration > 0 ? clip.duration : 1;
+  let tContact = getKickContactDelaySec();
+  tContact = clamp(tContact, 0.001, Math.max(0.002, duration - 0.001));
+
+  const wasRunning = kickAct.isRunning();
+  const prevTime = kickAct.time;
+  const prevPaused = kickAct.paused;
+
+  striker.root.rotation.y = yaw;
+  striker.root.updateMatrixWorld(true);
+
+  try {
+    kickAct.enabled = true;
+    kickAct.reset();
+    kickAct.play();
+    kickAct.setEffectiveWeight(1);
+    kickAct.paused = true;
+    kickAct.time = tContact;
+    kickMx.update(0.0001);
+  } catch (_) {
+    kickAct.paused = prevPaused;
+    kickAct.time = prevTime;
+    if (!wasRunning) kickAct.stop();
+    alignStrikerToBallIdleFallback();
+    return;
+  }
+
+  const foot = getPlantFootBone(kickModel);
+  if (!foot) {
+    kickAct.reset();
+    kickAct.stop();
+    kickAct.paused = false;
+    try {
+      kickMx.update(0.0001);
+    } catch (_) {}
+    applyStrikerRootPlacementFallback();
+    return;
+  }
+
+  striker.root.getWorldPosition(_tmpV);
+  const rx = _tmpV.x;
+  const rz = _tmpV.z;
+  foot.getWorldPosition(_tmpV);
+  const dx = _tmpV.x - rx;
+  const dz = _tmpV.z - rz;
+
+  striker.root.position.set(
+    BALL_SPOT_X - dx,
+    0,
+    BALL_SPOT_Z - dz + strikeTuneNum('rootOffsetZ', 0),
+  );
+  striker.root.updateMatrixWorld(true);
+
+  if (DEBUG_PLANT_FOOT && ballMesh) {
+    foot.getWorldPosition(_tmpV);
+    console.log('ALIGN foot-ball dx=', (_tmpV.x - BALL_SPOT_X).toFixed(3));
+    console.log('ALIGN foot-ball dz=', (_tmpV.z - BALL_SPOT_Z).toFixed(3));
+  }
+
+  try {
+    kickAct.reset();
+    kickAct.stop();
+    kickAct.paused = false;
+    kickAct.time = 0;
+    kickMx.update(0.0001);
+  } catch (_) {}
 }
 
 function applyStrikerRootPlacement() {
