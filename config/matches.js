@@ -2,7 +2,7 @@
  * Maç ve oyuncu tanımları — asset yolları assets/ köküne göredir.
  *
  * strikeTune (dünya +X = sahada sağ):
- * - rootOffsetX/Z: forvet başlangıç konumu ince ayarı (top merkezine göre STRIKER_START_OFFSET + bu değer)
+ * - rootOffsetX/Z: ince ayar; rootOffsetX kodda ±0.05 m ile clamp (aşılmaz)
  * - strikerYaw: rad; kök dönüşü = Math.PI + strikerYaw (varsayılan ~-0.22, kaleye hafif çapraz)
  * - kickMeshX/Z: kick FBX yerel offset (temas karesi / model hizası)
  * - kickContactFrac: şut klibinde temas anı = duration * frac (kod varsayılanı ~0.44)
@@ -24,7 +24,7 @@ export const MATCHES = [
         idle: 'onuachu_idle.fbx',
         kick: 'onuachu_kick.fbx',
         strikeTune: {
-          rootOffsetX: 0.11,
+          rootOffsetX: 0.04,
           rootOffsetZ: 0.04,
           kickMeshX: 0.075,
           kickMeshZ: 0.035,
@@ -38,7 +38,7 @@ export const MATCHES = [
         idle: 'osimhen_idle.fbx',
         kick: 'osimhen_kick.fbx',
         strikeTune: {
-          rootOffsetX: 0.09,
+          rootOffsetX: 0.03,
           rootOffsetZ: 0.05,
           kickMeshX: 0.07,
           kickMeshZ: 0.03,
@@ -60,7 +60,7 @@ export const MATCHES = [
         idle: 'asensio_idle.fbx',
         kick: 'asensio_kick.fbx',
         strikeTune: {
-          rootOffsetX: 0.13,
+          rootOffsetX: 0.05,
           rootOffsetZ: 0.04,
           kickMeshX: 0.085,
           kickMeshZ: 0.038,
@@ -74,7 +74,7 @@ export const MATCHES = [
         idle: 'oh_idle.fbx',
         kick: 'oh_kick.fbx',
         strikeTune: {
-          rootOffsetX: 0.15,
+          rootOffsetX: 0.05,
           rootOffsetZ: 0.035,
           kickMeshX: 0.09,
           kickMeshZ: 0.042,

@@ -58,7 +58,7 @@ const PENALTY_Z = GZ + 11; // = -5
 const BALL_SPOT_X = 0;
 const BALL_SPOT_Z = PENALTY_Z;
 // Forvet: topa göre geri + hafif yan (kameraya doğru +Z); strikeTune rootOffset ince ayar
-const STRIKER_START_OFFSET_X = 0.28;
+const STRIKER_START_OFFSET_X = 0.08;
 const STRIKER_START_OFFSET_Z = 1.9;
 const KEEPER_BASE_Z = GZ + 0.42;
 /** Hedef düzlemi: kale ağzının altına doğru genişlet (local / world, m) */
@@ -94,7 +94,11 @@ function tunedBallZ() {
   return BALL_SPOT_Z;
 }
 function tunedStrikerRootX() {
-  return BALL_SPOT_X + STRIKER_START_OFFSET_X + strikeTuneNum('rootOffsetX');
+  return (
+    BALL_SPOT_X +
+    STRIKER_START_OFFSET_X +
+    clamp(strikeTuneNum('rootOffsetX'), -0.05, 0.05)
+  );
 }
 function tunedStrikerRootZ() {
   return BALL_SPOT_Z + STRIKER_START_OFFSET_Z + strikeTuneNum('rootOffsetZ');
@@ -113,7 +117,7 @@ function applyBallRestFromStrikerRoot() {
 function applyStrikerRootPlacement() {
   if (!striker?.root) return;
   striker.root.position.set(tunedStrikerRootX(), 0, tunedStrikerRootZ());
-  striker.root.rotation.y = Math.PI + strikeTuneNum('strikerYaw', -0.22);
+  striker.root.rotation.y = Math.PI + strikeTuneNum('strikerYaw', -0.28);
 }
 
 const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡"];
@@ -560,6 +564,9 @@ const K_REACT_DELAY=0.14;
 const PRE_SHOT_DELAY=0.0;      // hedef secilince kick hemen baslar
 let shotTarget=null;
 const DEBUG_SHOT=false;
+/** `true`: ~60 karede bir Striker X / Ball X (fark ~0.05–0.12 m hedef) */
+const DEBUG_STRIKER_BALL_ALIGN = false;
+let _dbgStrikerBallFrame = 0;
 let pendingShotTimer=null;
 let pendingKickTimer=null;
 
@@ -921,6 +928,20 @@ function loop(ts){
 
   tickChar(striker,dt);
   tickChar(keeper,dt);
+
+  if(
+    DEBUG_STRIKER_BALL_ALIGN &&
+    gameActive &&
+    striker?.root &&
+    ballMesh &&
+    !ballCaught
+  ){
+    _dbgStrikerBallFrame++;
+    if(_dbgStrikerBallFrame % 60 === 0){
+      console.log('Striker X:', striker.root.position.x);
+      console.log('Ball X:', ballMesh.position.x);
+    }
+  }
 
   if(ballAnim.on&&ballMesh){
     ballAnim.t+=dt;
