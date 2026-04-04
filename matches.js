@@ -7,6 +7,7 @@
  *   (top, köke göre biraz “solda” kalır = sağ ayak hattına yaklaşır)
  * - kickMeshX/Z: sadece kick FBX local offset (temas karesi)
  * - kickContactFrac: (opsiyonel) şut klibinde temas anı = duration * frac (varsayılan 0.7)
+ * - footForwardOffset: ayak kemik pivotundan burun yönüne (getWorldDirection) metre (Mixamo ~0.15–0.22)
  */
 export const MATCHES = [
   {
@@ -29,6 +30,7 @@ export const MATCHES = [
           ballOffsetZ: -0.05,
           kickMeshX: 0.075,
           kickMeshZ: 0.035,
+          footForwardOffset: 0.17,
         },
       },
       {
@@ -45,7 +47,7 @@ export const MATCHES = [
           ballOffsetZ: -0.04,
           kickMeshX: 0.07,
           kickMeshZ: 0.03,
-          contactDelay: 0.892,
+          footForwardOffset: 0.17,
         },
       },
     ],
@@ -86,6 +88,7 @@ export const MATCHES = [
           ballOffsetZ: -0.055,
           kickMeshX: 0.09,
           kickMeshZ: 0.042,
+          footForwardOffset: 0.17,
         },
       },
     ],

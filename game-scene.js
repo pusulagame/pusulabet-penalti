@@ -619,14 +619,16 @@ function syncBallToStrikerFoot(){
   const footBone=model ? getStrikerFootBone(model) : null;
   if(footBone){
     footBone.getWorldPosition(_tmpV);
+    footBone.getWorldDirection(_tmpV2);
+    const off=strikeTuneNum('footForwardOffset', 0.18);
+    _tmpV2.multiplyScalar(off);
+    _tmpV.add(_tmpV2);
     ballMesh.position.set(_tmpV.x, BALL_R, _tmpV.z);
     if(DEBUG_BALL_FOOT){
       _debugBallFootFrame++;
       if(_debugBallFootFrame % 45 === 0){
-        const fp=new THREE.Vector3();
-        footBone.getWorldPosition(fp);
+        console.log('Foot:', _tmpV.clone());
         console.log('Ball:', ballMesh.position.clone());
-        console.log('Foot:', fp);
       }
     }
   }else{
