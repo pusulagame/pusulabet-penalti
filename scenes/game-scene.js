@@ -9,7 +9,7 @@ import { MATCHES } from '../config/matches.js';
 
 let strikerIdleRel = 'onuachu/onuachu_idle.fbx';
 let strikerKickRel = 'onuachu/onuachu_kick.fbx';
-/** @type {Record<string, number> & { kickContactFrac?: number } | null} */
+/** @type {Record<string, number> & { kickContactFrac?: number; strikerYaw?: number } | null} */
 let strikerStrikeTune = null;
 
 /** Oyuncu nesnesinde strikeTune yoksa (eski build) MATCHES’ten idle yoluna göre yükle */
@@ -54,12 +54,12 @@ const GW=7.32, GH=2.44;
 // Goal line Z (world). Penalti noktasi 11m onde (kamera tarafina dogru).
 const GZ=-16;
 const PENALTY_Z = GZ + 11; // = -5
-// Penaltı noktası / top / forvet — aynı X; negatif = ekranda sola
-// Top sağ ayak hizasına yakın (negatif X topu ayağın solunda bırakıyordu)
-const BALL_SPOT_X = 0.07;
-const BALL_SPOT_Z = PENALTY_Z + 0.08;
-// Forvet + kaleci: ceza noktasından bir adım daha geri (kameraya doğru)
-const STRIKER_SPOT_Z = PENALTY_Z + 1.98;
+// Top: penaltı işaretiyle aynı dünya XZ (merkez, sabit)
+const BALL_SPOT_X = 0;
+const BALL_SPOT_Z = PENALTY_Z;
+// Forvet: topa göre geri + hafif yan (kameraya doğru +Z); strikeTune rootOffset ince ayar
+const STRIKER_START_OFFSET_X = 0.28;
+const STRIKER_START_OFFSET_Z = 1.9;
 const KEEPER_BASE_Z = GZ + 0.42;
 /** Hedef düzlemi: kale ağzının altına doğru genişlet (local / world, m) */
 const TARGET_EXTEND_DOWN_LOCAL = 0.32;
@@ -86,36 +86,34 @@ function strikeTuneNum(key, def = 0) {
   }
   return def;
 }
-/** Eski dünya X/Z (işaretçi / debug); top yerleşimi striker.root + ballOffsetFromRoot() ile yapılır */
+/** Top daima penaltı noktası (ballOffset strikeTune’da kullanılmaz) */
 function tunedBallX() {
-  return BALL_SPOT_X + strikeTuneNum('ballOffsetX');
+  return BALL_SPOT_X;
 }
 function tunedBallZ() {
-  return BALL_SPOT_Z + strikeTuneNum('ballOffsetZ');
+  return BALL_SPOT_Z;
 }
 function tunedStrikerRootX() {
-  return BALL_SPOT_X + strikeTuneNum('rootOffsetX');
+  return BALL_SPOT_X + STRIKER_START_OFFSET_X + strikeTuneNum('rootOffsetX');
 }
 function tunedStrikerRootZ() {
-  return STRIKER_SPOT_Z + strikeTuneNum('rootOffsetZ');
+  return BALL_SPOT_Z + STRIKER_START_OFFSET_Z + strikeTuneNum('rootOffsetZ');
 }
-/** ballOffset* ve rootOffset* aynı anchor: top = kök + (tunedBall - tunedRoot) — ayrı BALL_SPOT/SPOT_Z farkı burada tek vektörde */
-function ballOffsetFromRoot() {
-  return {
-    x: tunedBallX() - tunedStrikerRootX(),
-    y: BALL_R,
-    z: tunedBallZ() - tunedStrikerRootZ(),
-  };
+/** Topu sahneye alıp penaltı işaretine koy (normal akışta tek dinlenme konumu) */
+function applyBallPenaltySpot() {
+  if (!ballMesh) return;
+  detachBallToScene();
+  ballMesh.position.set(BALL_SPOT_X, BALL_R, BALL_SPOT_Z);
 }
+/** Penaltı dışı / debug: eski ayak takibi kapatıldı; çağrılırsa spot’a çeker */
 function applyBallRestFromStrikerRoot() {
-  if (!striker?.root || !ballMesh) return;
-  const o = ballOffsetFromRoot();
-  ballMesh.position.set(striker.root.position.x + o.x, o.y, striker.root.position.z + o.z);
+  applyBallPenaltySpot();
 }
-/** Forvet kökü X/Z — boot ve Faz-2 sonunda tekrar (yerleşimin ezilmesini önlemek için) */
+/** Forvet: topa göre geride + strikeTune; yaw = Math.PI + strikerYaw (kaleye çapraz) */
 function applyStrikerRootPlacement() {
   if (!striker?.root) return;
   striker.root.position.set(tunedStrikerRootX(), 0, tunedStrikerRootZ());
+  striker.root.rotation.y = Math.PI + strikeTuneNum('strikerYaw', -0.22);
 }
 
 const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡"];
@@ -262,7 +260,7 @@ scene.add(gnd);
 // Penalti noktasi (world-space: kale merkezinden 11m)
 const wm=new THREE.MeshBasicMaterial({color:0xffffff});
 const sp=new THREE.Mesh(new THREE.CircleGeometry(0.22,32),wm);
-sp.rotation.x=-Math.PI/2;sp.position.set(0,0.02,PENALTY_Z);scene.add(sp);
+sp.rotation.x=-Math.PI/2;sp.position.set(BALL_SPOT_X,0.02,BALL_SPOT_Z);scene.add(sp);
 const ln=new THREE.Mesh(new THREE.PlaneGeometry(9.15,0.12),wm);
 ln.rotation.x=-Math.PI/2;ln.position.set(0,0.02,PENALTY_Z-5.5);scene.add(ln);
 
@@ -557,16 +555,11 @@ let ballAnim={on:false,t:0,dur:0.55,p0:null,p1:null,p2:null};
 let ballCaught=false;
 let ballCatchAnchor=null;
 const _tmpV=new THREE.Vector3();
-const _tmpV2=new THREE.Vector3();
 let kAnim={phase:'idle',t:0,sx:0,tx:0,side:'center',yN:0};
 const K_REACT_DELAY=0.14;
 const PRE_SHOT_DELAY=0.0;      // hedef secilince kick hemen baslar
 let shotTarget=null;
 const DEBUG_SHOT=false;
-/** Ayak/top debug: `true` → ~45 karede bir Ball/Foot Vector3 log (doğrulama sonrası false) */
-const DEBUG_BALL_FOOT = false;
-let _debugBallFootFrame = 0;
-let ballTetherToFoot = true;
 let pendingShotTimer=null;
 let pendingKickTimer=null;
 
@@ -588,20 +581,6 @@ function getKeeperCatchAnchor(){
   return best || model;
 }
 
-/** Şut ayağı: mümkünse RightToeBase (temas noktası), yoksa RightFoot */
-function getStrikerFootBone(modelRoot){
-  if(!modelRoot) return null;
-  let rightToe=null, rightFoot=null, anyFoot=null;
-  modelRoot.traverse((o)=>{
-    if(!o?.isBone || !o.name) return;
-    const n=o.name.toLowerCase().replace(/:/g,'');
-    if(n.includes('right') && (n.includes('toe') || n.includes('toebase'))) rightToe=o;
-    if(n.includes('right') && n.includes('foot')) rightFoot=o;
-    if(!anyFoot && n.includes('foot')) anyFoot=o;
-  });
-  return rightToe || rightFoot || anyFoot;
-}
-
 function getKickContactDelaySec(){
   const act=striker?.actions?.kick;
   let duration=1;
@@ -615,41 +594,9 @@ function getKickContactDelaySec(){
   return clamp(duration * f, 0.04, Math.max(0.06, duration - 0.02));
 }
 
+/** Eski ayak takibi kaldırıldı; penaltıda top sabit — debug için çağrılırsa spot’a çeker */
 function syncBallToStrikerFoot(){
-  if(!ballMesh || !striker?.root) return;
-  const model=striker.models?.[striker.current] || striker.models?.idle;
-  const footBone=model ? getStrikerFootBone(model) : null;
-  if(footBone){
-    footBone.updateWorldMatrix(true, false);
-    footBone.getWorldPosition(_tmpV);
-    const px=_tmpV.x, pz=_tmpV.z;
-    // Mixamo ayakta parmak yönü genelde yerel +Z (getWorldDirection -Z ile karışmasın)
-    _tmpV2.set(
-      strikeTuneNum('footToeLocalX', 0),
-      strikeTuneNum('footToeLocalY', 0),
-      strikeTuneNum('footToeLocalZ', 1),
-    );
-    if(_tmpV2.lengthSq()<1e-8) _tmpV2.set(0, 0, 1);
-    _tmpV2.normalize();
-    _tmpV2.transformDirection(footBone.matrixWorld);
-    _tmpV2.multiplyScalar(strikeTuneNum('footForwardOffset', 0.18));
-    ballMesh.position.set(px + _tmpV2.x, BALL_R, pz + _tmpV2.z);
-    if(DEBUG_BALL_FOOT){
-      _debugBallFootFrame++;
-      if(_debugBallFootFrame % 45 === 0){
-        console.log('Foot:', _tmpV.clone());
-        console.log('Ball:', ballMesh.position.clone());
-      }
-    }
-  }else{
-    applyBallRestFromStrikerRoot();
-    if(DEBUG_BALL_FOOT){
-      _debugBallFootFrame++;
-      if(_debugBallFootFrame % 45 === 0){
-        console.log('Ball (root fallback):', ballMesh.position.x, ballMesh.position.y, ballMesh.position.z, '(no foot bone)');
-      }
-    }
-  }
+  applyBallPenaltySpot();
 }
 
 function detachBallToScene(){
@@ -668,7 +615,6 @@ function attachBallToKeeper(){
   const anchor=getKeeperCatchAnchor();
   if(!anchor) return;
   detachBallToScene();
-  ballTetherToFoot=false;
   ballCatchAnchor=anchor;
   anchor.add(ballMesh);
 
@@ -759,14 +705,11 @@ function shootAt(worldTarget, localTarget){
 
   // 1) hedef secildi → kick başlat
   pendingShotTimer=setTimeout(()=>{
-    ballTetherToFoot=true;
     playAnim(striker,'kick');
     const contactDelayMs=Math.round(getKickContactDelaySec()*1000);
 
-    // 2) temas süresinde top ayakla birlikte; sonra fırlat
+    // 2) temas anına kadar top sabit; sonra dünya konumundan fırlat
     pendingKickTimer=setTimeout(()=>{
-      ballTetherToFoot=false;
-      // keeper her zaman ortadan baslar (teleport yok)
       if(keeper){
         keeper.root.position.x=0;
         keeper.root.position.y=0;
@@ -778,7 +721,8 @@ function shootAt(worldTarget, localTarget){
         scene.add(ballMesh);
         ballMesh.position.copy(_tmpV);
       }
-      const p0=ballMesh.position.clone();
+      const p0=new THREE.Vector3();
+      ballMesh.getWorldPosition(p0);
       const p2=target.clone();
       const p1=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
       p1.y+=2.0+Math.random()*0.4;
@@ -838,10 +782,8 @@ function showRes(ok){
     if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
     if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
     if(ballMesh){
-      detachBallToScene();
+      applyBallPenaltySpot();
       applyStrikerRootPlacement();
-      ballTetherToFoot=true;
-      syncBallToStrikerFoot();
       ballAnim.on=false;
     }
     playAnim(striker,'idle');
@@ -897,7 +839,6 @@ function showFinal(){
 
 function resetGame(){
   if(isPenaltyLocked()) return;
-  ballTetherToFoot=true;
   goals=0;misses=0;shots=0;canShoot=true;gameActive=true;
   document.getElementById('sGoal').textContent='0';
   document.getElementById('sMiss').textContent='0';
@@ -908,10 +849,8 @@ function resetGame(){
   if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
   if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
   if(ballMesh){
-    detachBallToScene();
+    applyBallPenaltySpot();
     applyStrikerRootPlacement();
-    ballTetherToFoot=true;
-    syncBallToStrikerFoot();
     ballAnim.on=false;
   }
   playAnim(striker,'idle');
@@ -983,18 +922,6 @@ function loop(ts){
   tickChar(striker,dt);
   tickChar(keeper,dt);
 
-  if(
-    ballTetherToFoot &&
-    ballMesh &&
-    !ballCaught &&
-    !ballAnim.on &&
-    gameActive &&
-    striker?.root
-  ){
-    syncBallToStrikerFoot();
-    sp.position.set(ballMesh.position.x, 0.02, ballMesh.position.z);
-  }
-
   if(ballAnim.on&&ballMesh){
     ballAnim.t+=dt;
     const u=Math.min(ballAnim.t/ballAnim.dur,1),e=easeIO(u);
@@ -1051,7 +978,6 @@ texLoader.setCrossOrigin('anonymous');
 function _setupStriker(idle){
   if(!idle) return;
   const root=new THREE.Group();
-  root.rotation.y=Math.PI;
   root.renderOrder=10;
   scene.add(root);
   striker={root,models:{},mixers:{},actions:{},current:''};
@@ -1251,11 +1177,10 @@ async function boot(){
 
   // Top + forvet: Faz-2 sonunda konumları strikeTune’a göre yenile (kick yükleme sırası vb.)
   applyStrikerRootPlacement();
-  ballTetherToFoot=true;
-  if (ballMesh) syncBallToStrikerFoot();
+  if (ballMesh) applyBallPenaltySpot();
 
   // OYUNU BAŞLAT (dokular + shader ön derleme sonrası)
-  sp.position.set(ballMesh ? ballMesh.position.x : tunedBallX(), 0.02, ballMesh ? ballMesh.position.z : PENALTY_Z);
+  sp.position.set(BALL_SPOT_X, 0.02, BALL_SPOT_Z);
   ready=true;
   gameActive=true;
   canShoot=true;
