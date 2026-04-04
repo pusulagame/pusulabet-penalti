@@ -1,5 +1,6 @@
 import { MATCHES } from '../config/matches.js';
 import { store } from '../state/store.js';
+import { assetUrl } from '../services/assets.js';
 
 /**
  * @param {{ root: HTMLElement, onSelect: () => void }} opts
@@ -19,8 +20,8 @@ export function mountMatchSelect({ root, onSelect }) {
     card.type = 'button';
     card.className = 'match-card';
     card.dataset.matchId = m.id;
-    const homeLogo = './assets/' + m.homeTeam.logo;
-    const awayLogo = './assets/' + m.awayTeam.logo;
+    const homeLogo = assetUrl(m.homeTeam.logo);
+    const awayLogo = assetUrl(m.awayTeam.logo);
     card.innerHTML = `
       <div class="match-logos">
         <img src="${homeLogo}" alt="" class="team-logo" loading="lazy" />

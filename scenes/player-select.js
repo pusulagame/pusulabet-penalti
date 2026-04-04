@@ -1,6 +1,7 @@
 import { teamLabel } from '../config/matches.js';
 import { store } from '../state/store.js';
 import { getTgId, isPenaltyLocked } from '../services/telegram.js';
+import { assetUrl } from '../services/assets.js';
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
@@ -156,7 +157,7 @@ function addPreview(canvas2d, dir, idleFile) {
   _loadQueue = _loadQueue.then(() => new Promise((resolve) => {
     const loader = new FBXLoader();
     loader.load(
-      `./assets/${dir}/${idleFile}`,
+      assetUrl(`${dir}/${idleFile}`),
       (obj) => {
         fixMaterials(obj);
         normalizeObj(obj);

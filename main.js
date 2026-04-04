@@ -39,6 +39,9 @@ async function onPlayerStart(player) {
   if (ldFill) ldFill.style.width  = '0%';
   if (ldPct)  ldPct.textContent   = '0%';
 
+  // Mobil / WebView: overlay bir kare boyunca çizilsin, sonra ağır modül yüklensin
+  await new Promise((r) => requestAnimationFrame(() => r()));
+
   const idle = `${player.dir}/${player.idle}`;
   const kick = `${player.dir}/${player.kick}`;
   // Telegram geri tuşunu gizle — oyun sırasında yanlışlıkla başa dönmesin
