@@ -953,21 +953,25 @@ function showFinal(){
   }
   // HUD tek kaynak: global goals ile tutarsizlik olmasin
   const goalsHud = parseInt(document.getElementById('sGoal')?.textContent || '0', 10) || goals;
-  const pct=goalsHud/TOTAL;
   const t=document.getElementById('fTrophy');
   const ti=document.getElementById('fTitle');
   const m=document.getElementById('fMsg');
   const fs=document.getElementById('fScore');
   if(fs) fs.textContent=goalsHud+'/'+TOTAL+' GOL';
-  const won = goalsHud >= 3;
+  const won = goalsHud === TOTAL;
   if(won){
     if(t) t.textContent = '';
     if(ti){ ti.textContent = 'KAZANDIN!'; ti.style.color = '#00E676'; }
-    if(m) m.textContent = pct===1 ? 'Mukemmel performans!' : 'Tebrikler! Kazandin.';
+    if(m) m.textContent = 'Tüm penaltıları gole çevirdin!';
   }else{
     if(t) t.textContent = '';
     if(ti){ ti.textContent = 'KAYBETTİN!'; ti.style.color = '#FF5252'; }
-    if(m) m.textContent = 'Bu sefer kaleci kazandi!';
+    if(m){
+      m.textContent =
+        goalsHud === 4 || goalsHud === 3
+          ? `${goalsHud}/${TOTAL} gol — tam isabete çok yakındın!`
+          : 'Bu sefer kaleci kazandı!';
+    }
   }
   document.getElementById('final').classList.add('show');
   gameActive=false;
@@ -982,9 +986,6 @@ function showFinal(){
     goalsHud,
     total: TOTAL,
   });
-
-  const btnReplay=document.querySelector('#final .btnP');
-  if(btnReplay && getTgId()){ btnReplay.style.display='none'; }
 }
 
 function resetGame(){
