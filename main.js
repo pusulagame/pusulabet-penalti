@@ -55,12 +55,14 @@ async function onPlayerStart(player) {
     await runPenaltyGame();
   } catch(err) {
     console.error('[Game] Kritik hata:', err);
-    // Yükleme ekranında hata mesajı göster — başa atmak yerine
-    const ldTxt  = document.getElementById('ldTxt');
+    // Maç seçimine dön; yükleme overlay'ini kapat (mobilde takılı kalmayı önle)
+    const ldTxt   = document.getElementById('ldTxt');
     const ldPctEl = document.getElementById('ldPct');
-    if(ldTxt)  ldTxt.textContent  = 'HATA OLUŞTU';
-    if(ldPctEl) ldPctEl.textContent = 'Sayfayı yenileyin';
-    if(ld) ld.classList.remove('hide');
+    if (ldTxt)   ldTxt.textContent   = 'YÜKLENİYOR';
+    if (ldPctEl) ldPctEl.textContent  = '0%';
+    if (ldFill)  ldFill.style.width   = '0%';
+    if (ld)      ld.classList.add('hide');
+    gotoMatch();
   } finally {
     try { _tg?.disableClosingConfirmation?.(); } catch(_) {}
   }

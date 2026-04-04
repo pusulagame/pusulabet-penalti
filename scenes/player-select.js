@@ -2,8 +2,12 @@ import { teamLabel } from '../config/matches.js';
 import { store } from '../state/store.js';
 import { getTgId, isPenaltyLocked } from '../services/telegram.js';
 import { assetUrl } from '../services/assets.js';
+import { fbxResolveUrl } from '../services/fbx-textures.js';
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+const _previewLm = new THREE.LoadingManager();
+_previewLm.setURLModifier(fbxResolveUrl);
 
 const PB_USER_KEY = 'pusulabet_username';
 function normPbUser(v) { return (v || '').trim().replace(/\s+/g, ' ').slice(0, 24); }
@@ -155,7 +159,7 @@ function addPreview(canvas2d, dir, idleFile) {
 
   // Sıralı yükleme — bir önceki bitmeden bir sonraki başlamaz
   _loadQueue = _loadQueue.then(() => new Promise((resolve) => {
-    const loader = new FBXLoader();
+    const loader = new FBXLoader(_previewLm);
     loader.load(
       assetUrl(`${dir}/${idleFile}`),
       (obj) => {

@@ -4,6 +4,7 @@ import { sendPenaltyResult } from '../services/result-sender.js';
 import { store } from '../state/store.js';
 import { getTg, getTgId, isPenaltyLocked } from '../services/telegram.js';
 import { assetUrl as ASSET } from '../services/assets.js';
+import { fbxResolveUrl } from '../services/fbx-textures.js';
 
 let strikerIdleRel = 'onuachu/onuachu_idle.fbx';
 let strikerKickRel = 'onuachu/onuachu_kick.fbx';
@@ -14,7 +15,15 @@ export function setStrikerAssets(idleRel, kickRel) {
 }
 
 export async function runPenaltyGame() {
-  await boot();
+  try {
+    await boot();
+  } catch (e) {
+    console.error('[runPenaltyGame]', e);
+    try {
+      setLoadProgress(1);
+    } catch (_) {}
+    throw e;
+  }
 }
 
 
@@ -56,20 +65,13 @@ const fx=document.getElementById('fx');
 const fctx=fx.getContext('2d');
 let W=innerWidth,H=innerHeight;
 
-// URL modifier: FBX içindeki Windows mutlak yollarını düzelt
-function _fixUrl(url){
-  const m=url.match(/^(.*\/)([A-Za-z]:[/\\].+)$/);
-  if(m){ const dir=m[1]; const fn=m[2].replace(/\\/g,'/').split('/').pop(); return dir+fn; }
-  return url;
-}
-
 // Faz-1 manager: ilerleme çubuğunu yönetir
 const manager=new THREE.LoadingManager();
-manager.setURLModifier(_fixUrl);
+manager.setURLModifier(fbxResolveUrl);
 
 // Faz-2 manager: arka planda yükler, progress bar'ı etkilemez
 const bgManager=new THREE.LoadingManager();
-bgManager.setURLModifier(_fixUrl);
+bgManager.setURLModifier(fbxResolveUrl);
 
 function setLoadProgress(p){
   const pct=Math.round(clamp(p,0,1)*100);
