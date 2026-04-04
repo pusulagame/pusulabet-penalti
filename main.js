@@ -2,6 +2,7 @@ import { initTelegram } from './services/telegram.js';
 import { resetStore } from './state/store.js';
 import { mountMatchSelect } from './scenes/match-select.js';
 import { mountPlayerSelect, disposePreviews } from './scenes/player-select.js';
+import { startLoadingLogoCarousel, stopLoadingLogoCarousel } from './services/loading-logos.js';
 
 initTelegram();
 
@@ -64,6 +65,7 @@ async function onPlayerStart(player) {
     if (ld)      ld.classList.add('hide');
     gotoMatch();
   } finally {
+    stopLoadingLogoCarousel();
     try { _tg?.disableClosingConfirmation?.(); } catch(_) {}
   }
 }

@@ -5,6 +5,7 @@ import { store } from '../state/store.js';
 import { getTg, getTgId, isPenaltyLocked } from '../services/telegram.js';
 import { assetUrl as ASSET } from '../services/assets.js';
 import { fbxResolveUrl } from '../services/fbx-textures.js';
+import { stopLoadingLogoCarousel } from '../services/loading-logos.js';
 
 let strikerIdleRel = 'onuachu/onuachu_idle.fbx';
 let strikerKickRel = 'onuachu/onuachu_kick.fbx';
@@ -77,7 +78,10 @@ function setLoadProgress(p){
   const pct=Math.round(clamp(p,0,1)*100);
   if(ldPct) ldPct.textContent=pct+'%';
   if(ldFill) ldFill.style.width=pct+'%';
-  if(pct>=100){ if(ld) ld.classList.add('hide'); }
+  if(pct>=100){
+    stopLoadingLogoCarousel();
+    if(ld) ld.classList.add('hide');
+  }
 }
 // ÖNEMLİ: manager.onLoad KULLANMA — Three.js her tek dosya bittiğinde itemsLoaded===itemsTotal
 // olabiliyor (ör. sadece bg.png); setLoadProgress(1) erken çağrılıp yükleme ekranı kapanıyordu.
@@ -923,13 +927,8 @@ function _addKeeperAnim(name,fbx,loopType){
   console.log('[Keeper] anim eklendi:',name);
 }
 
-/* ── Faz-2: Arka planda yükle (oyun açıkken) ─────────── */
+/* ── Faz-2: Kick, kaleci ekstra animasyonlar, kale FBX — yükleme bitmeden oyun açılmaz ── */
 async function bootBg(){
-  // Striker kick
-  const kick=await loadFBXBg(ASSET(strikerKickRel));
-  _addStrikerAnim(kick,'kick',THREE.LoopOnce);
-
-  // Kaleci ek animasyonlar
   const kExtra=_mob?[
     ['dive_left',  ASSET('keeper/dive_left.fbx'),  THREE.LoopOnce],
     ['dive_right', ASSET('keeper/dive_right.fbx'), THREE.LoopOnce],
@@ -941,16 +940,28 @@ async function bootBg(){
     ['sidestep_left',  ASSET('keeper/sidestep_left.fbx'),  THREE.LoopOnce],
     ['sidestep_right', ASSET('keeper/sidestep_right.fbx'), THREE.LoopOnce],
   ];
+  const bgSteps = 1 + kExtra.length + 1; // kick + ekstra + kale
+  let bgDone = 0;
+  const bumpBg = () => {
+    bgDone++;
+    setLoadProgress(0.88 + Math.min(1, bgDone / bgSteps) * 0.11);
+  };
+
+  const kick=await loadFBXBg(ASSET(strikerKickRel));
+  _addStrikerAnim(kick,'kick',THREE.LoopOnce);
+  bumpBg();
+
   for(const[name,url,lt] of kExtra){
     const fbx=await loadFBXBg(url);
     _addKeeperAnim(name,fbx,lt);
+    bumpBg();
   }
 
-  // Kale FBX — mobil + masaüstü (daha önce sadece masaüstünde ve ölçeksiz yükleniyordu)
   try{
     const gfbx=await loadFBXBg(ASSET('goal/goal_texture.fbx'));
     if(gfbx) applyGoalFbx(gfbx);
-  }catch(e){ console.warn('[Goal.fbx] Arka plan hatası',e?.message||e); }
+  }catch(e){ console.warn('[Goal.fbx] bootBg hatası',e?.message||e); }
+  bumpBg();
   console.log('[bootBg] Tamamlandı');
 }
 
@@ -996,18 +1007,22 @@ async function boot(){
 
   // Kale wireframe (her zaman var — FBX'siz fallback)
   ensureGoalHitMesh();
-  setLoadProgress(0.95);
+  setLoadProgress(0.88);
 
-  // OYUNU BAŞLAT
+  // Faz-2: kick, kaleci ek animasyonlar, kale modeli — bitene kadar yükleme ekranı açık kalır
+  try{
+    await bootBg();
+  }catch(e){
+    console.warn('[bootBg] Hata',e);
+  }
+
+  // OYUNU BAŞLAT (kale FBX dahil tüm Faz-2 tamam)
   applyCameraPreset();
   ready=true;
   gameActive=true;
   canShoot=true;
-  setLoadProgress(1.0); // loading ekranı kapanır
+  setLoadProgress(1.0);
   buildDots();
-  console.log('[boot] Faz-1 tamam → oyun açık');
+  console.log('[boot] Faz-1+Faz-2 tamam → oyun açık');
   if(!loopStarted){ loopStarted=true; requestAnimationFrame(loop); }
-
-  // Faz-2: arka planda yükle (atar vermez)
-  bootBg().catch(e=>console.warn('[bootBg] Hata',e));
 }

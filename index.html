@@ -62,8 +62,27 @@ body{
 }
 #loading.hide{display:none;}
 
-.ldIcon{font-size:62px;margin-bottom:22px;animation:ldSpin 1.8s linear infinite;display:block;}
-@keyframes ldSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+#ldBrand{
+  min-height:clamp(72px,18vw,100px);margin-bottom:18px;
+  display:flex;align-items:center;justify-content:center;width:min(92vw,400px);
+}
+.ld-brand-single img{
+  max-height:clamp(56px,16vw,88px);width:auto;object-fit:contain;
+  filter:drop-shadow(0 4px 20px rgba(0,0,0,.45));
+}
+.ld-brand-vs{
+  display:flex;align-items:center;justify-content:center;gap:clamp(10px,4vw,22px);
+  width:100%;
+}
+.ld-brand-vs .ld-brand-l,.ld-brand-vs .ld-brand-r{
+  max-height:clamp(48px,14vw,76px);width:auto;max-width:38%;object-fit:contain;
+  filter:drop-shadow(0 4px 16px rgba(0,0,0,.4));
+}
+.ld-brand-vstext{
+  font-size:clamp(20px,5.5vw,34px);letter-spacing:4px;color:rgba(255,215,0,.95);
+  text-shadow:0 0 18px rgba(255,107,0,.5);
+  flex-shrink:0;
+}
 
 #ldTxt{font-size:clamp(22px,5vw,32px);letter-spacing:6px;color:#fff;margin-bottom:8px;text-shadow:0 0 30px rgba(255,107,0,.6);}
 .ldPct{font-size:clamp(16px,4vw,22px);letter-spacing:3px;color:#FFD700;margin-bottom:22px;text-shadow:0 0 16px rgba(255,215,0,.5);}
@@ -267,7 +286,16 @@ body{
 </div>
 
 <div id="loading">
-  <span class="ldIcon">⚽</span>
+  <div id="ldBrand">
+    <div id="ldBrandSingle" class="ld-brand-single">
+      <img alt="" decoding="async" />
+    </div>
+    <div id="ldBrandVs" class="ld-brand-vs" hidden>
+      <img class="ld-brand-l" alt="" decoding="async" />
+      <span class="ld-brand-vstext">VS</span>
+      <img class="ld-brand-r" alt="" decoding="async" />
+    </div>
+  </div>
   <div id="ldTxt">YÜKLENİYOR</div>
   <div class="ldPct" id="ldPct">0%</div>
   <div class="ldBar"><div class="ldFill" id="ldFill"></div></div>
