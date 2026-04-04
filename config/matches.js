@@ -6,8 +6,9 @@
  * - ballOffsetX/Z: top kaydırma — sağ ayak vuruşu için genelde root’tan KÜÇÜK tutulur
  *   (top, köke göre biraz “solda” kalır = sağ ayak hattına yaklaşır)
  * - kickMeshX/Z: sadece kick FBX local offset (temas karesi)
- * - kickContactFrac: (opsiyonel) şut klibinde temas anı = duration * frac (varsayılan 0.7)
- * - footForwardOffset: ayak kemik pivotundan burun yönüne (getWorldDirection) metre (Mixamo ~0.15–0.22)
+ * - kickContactFrac: (opsiyonel) temas anı = duration * frac (kod varsayılanı ~0.44)
+ * - footForwardOffset: pivot → parmak ucu mesafe (m); footToeLocalX/Y/Z: kemik yerel ekseni (varsayılan 0,0,1)
+ * - kickContactFrac: şut klibinde temas anı (varsayılan kodda ~0.44; model başına ayarlanır)
  */
 export const MATCHES = [
   {
@@ -72,6 +73,7 @@ export const MATCHES = [
           ballOffsetZ: -0.05,
           kickMeshX: 0.085,
           kickMeshZ: 0.038,
+          footForwardOffset: 0.17,
         },
       },
       {

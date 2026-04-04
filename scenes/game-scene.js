@@ -588,17 +588,18 @@ function getKeeperCatchAnchor(){
   return best || model;
 }
 
-/** Şut ayağı (Mixamo: RightFoot / mixamorig:RightFoot) */
+/** Şut ayağı: mümkünse RightToeBase (temas noktası), yoksa RightFoot */
 function getStrikerFootBone(modelRoot){
   if(!modelRoot) return null;
-  let rightFoot=null, anyFoot=null;
+  let rightToe=null, rightFoot=null, anyFoot=null;
   modelRoot.traverse((o)=>{
     if(!o?.isBone || !o.name) return;
     const n=o.name.toLowerCase().replace(/:/g,'');
+    if(n.includes('right') && (n.includes('toe') || n.includes('toebase'))) rightToe=o;
     if(n.includes('right') && n.includes('foot')) rightFoot=o;
     if(!anyFoot && n.includes('foot')) anyFoot=o;
   });
-  return rightFoot || anyFoot;
+  return rightToe || rightFoot || anyFoot;
 }
 
 function getKickContactDelaySec(){
@@ -608,8 +609,9 @@ function getKickContactDelaySec(){
     const clip=typeof act.getClip==='function' ? act.getClip() : act._clip;
     if(clip && Number.isFinite(clip.duration) && clip.duration>0) duration=clip.duration;
   }
-  const frac=strikeTuneNum('kickContactFrac', 0.7);
-  const f=clamp(Number.isFinite(frac) ? frac : 0.7, 0.15, 0.95);
+  // Mixamo şutlarda temas çoğunlukla klibin ~%35–%50’sinde; 0.7 geç kalabiliyor
+  const frac=strikeTuneNum('kickContactFrac', 0.44);
+  const f=clamp(Number.isFinite(frac) ? frac : 0.44, 0.12, 0.92);
   return clamp(duration * f, 0.04, Math.max(0.06, duration - 0.02));
 }
 
@@ -618,12 +620,20 @@ function syncBallToStrikerFoot(){
   const model=striker.models?.[striker.current] || striker.models?.idle;
   const footBone=model ? getStrikerFootBone(model) : null;
   if(footBone){
+    footBone.updateWorldMatrix(true, false);
     footBone.getWorldPosition(_tmpV);
-    footBone.getWorldDirection(_tmpV2);
-    const off=strikeTuneNum('footForwardOffset', 0.18);
-    _tmpV2.multiplyScalar(off);
-    _tmpV.add(_tmpV2);
-    ballMesh.position.set(_tmpV.x, BALL_R, _tmpV.z);
+    const px=_tmpV.x, pz=_tmpV.z;
+    // Mixamo ayakta parmak yönü genelde yerel +Z (getWorldDirection -Z ile karışmasın)
+    _tmpV2.set(
+      strikeTuneNum('footToeLocalX', 0),
+      strikeTuneNum('footToeLocalY', 0),
+      strikeTuneNum('footToeLocalZ', 1),
+    );
+    if(_tmpV2.lengthSq()<1e-8) _tmpV2.set(0, 0, 1);
+    _tmpV2.normalize();
+    _tmpV2.transformDirection(footBone.matrixWorld);
+    _tmpV2.multiplyScalar(strikeTuneNum('footForwardOffset', 0.18));
+    ballMesh.position.set(px + _tmpV2.x, BALL_R, pz + _tmpV2.z);
     if(DEBUG_BALL_FOOT){
       _debugBallFootFrame++;
       if(_debugBallFootFrame % 45 === 0){
@@ -747,12 +757,15 @@ function shootAt(worldTarget, localTarget){
   if(pendingShotTimer){ clearTimeout(pendingShotTimer); pendingShotTimer=null; }
   if(pendingKickTimer){ clearTimeout(pendingKickTimer); pendingKickTimer=null; }
 
-  // 1) hedef secildi → ~1s sonra kick baslat
+  // 1) hedef secildi → kick başlat
   pendingShotTimer=setTimeout(()=>{
+    ballTetherToFoot=true;
     playAnim(striker,'kick');
+    const contactDelayMs=Math.round(getKickContactDelaySec()*1000);
 
-    // 2) kick temas aninda topu firlat + kaleciyi reaksiyona sok
+    // 2) temas süresinde top ayakla birlikte; sonra fırlat
     pendingKickTimer=setTimeout(()=>{
+      ballTetherToFoot=false;
       // keeper her zaman ortadan baslar (teleport yok)
       if(keeper){
         keeper.root.position.x=0;
@@ -760,6 +773,11 @@ function shootAt(worldTarget, localTarget){
         kAnim={phase:'react',t:0,sx:0,tx:diveX,side,yN};
       }
 
+      if(ballMesh.parent && ballMesh.parent !== scene){
+        ballMesh.getWorldPosition(_tmpV);
+        scene.add(ballMesh);
+        ballMesh.position.copy(_tmpV);
+      }
       const p0=ballMesh.position.clone();
       const p2=target.clone();
       const p1=new THREE.Vector3().addVectors(p0,p2).multiplyScalar(0.5);
