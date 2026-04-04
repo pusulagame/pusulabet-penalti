@@ -57,8 +57,7 @@ const PENALTY_Z = GZ + 11; // = -5
 // Top: penaltı işaretiyle aynı dünya XZ (merkez, sabit)
 const BALL_SPOT_X = 0;
 const BALL_SPOT_Z = PENALTY_Z;
-// Forvet: topa göre geri + hafif yan (kameraya doğru +Z); strikeTune rootOffset ince ayar
-const STRIKER_START_OFFSET_X = 0.08;
+// Forvet Z: plant foot X top ile hizalanır; Z’de ekstra geri adım (+ strikeTune rootOffsetZ)
 const STRIKER_START_OFFSET_Z = 1.9;
 const KEEPER_BASE_Z = GZ + 0.42;
 /** Hedef düzlemi: kale ağzının altına doğru genişlet (local / world, m) */
@@ -93,16 +92,6 @@ function tunedBallX() {
 function tunedBallZ() {
   return BALL_SPOT_Z;
 }
-function tunedStrikerRootX() {
-  return (
-    BALL_SPOT_X +
-    STRIKER_START_OFFSET_X +
-    clamp(strikeTuneNum('rootOffsetX'), -0.05, 0.05)
-  );
-}
-function tunedStrikerRootZ() {
-  return BALL_SPOT_Z + STRIKER_START_OFFSET_Z + strikeTuneNum('rootOffsetZ');
-}
 /** Topu sahneye alıp penaltı işaretine koy (normal akışta tek dinlenme konumu) */
 function applyBallPenaltySpot() {
   if (!ballMesh) return;
@@ -113,11 +102,85 @@ function applyBallPenaltySpot() {
 function applyBallRestFromStrikerRoot() {
   applyBallPenaltySpot();
 }
-/** Forvet: topa göre geride + strikeTune; yaw = Math.PI + strikerYaw (kaleye çapraz) */
-function applyStrikerRootPlacement() {
+/** Kemik yoksa: kökü kabaca geri; X merkez */
+function applyStrikerRootPlacementFallback() {
   if (!striker?.root) return;
-  striker.root.position.set(tunedStrikerRootX(), 0, tunedStrikerRootZ());
+  striker.root.position.set(
+    BALL_SPOT_X,
+    0,
+    BALL_SPOT_Z + STRIKER_START_OFFSET_Z + strikeTuneNum('rootOffsetZ', 0),
+  );
   striker.root.rotation.y = Math.PI + strikeTuneNum('strikerYaw', -0.28);
+}
+
+function updateStrikerMixersForAlign() {
+  if (!striker?.mixers) return;
+  Object.values(striker.mixers).forEach((mx) => {
+    try {
+      mx.update(1 / 60);
+    } catch (_) {}
+  });
+}
+
+/** Penaltı destek ayağı (sol / plant foot) — sağ ayak şut */
+function getPlantFootBone(modelRoot) {
+  if (!modelRoot) return null;
+  let found = null;
+  modelRoot.traverse((o) => {
+    if (!o?.isBone) return;
+    const n = o.name.toLowerCase().replace(/:/g, '');
+    if (
+      n.includes('leftfoot') ||
+      n.includes('left_foot') ||
+      n.includes('foot_l')
+    ) {
+      found = o;
+    }
+  });
+  return found;
+}
+
+/** `true` iken hizadan sonra Foot / Ball world (±~0.02 hedef) */
+const DEBUG_PLANT_FOOT = false;
+
+/** Plant foot dünya XZ ≈ top; root geri hesaplanır */
+function alignStrikerToBall() {
+  if (!striker?.root) return;
+  updateStrikerMixersForAlign();
+  striker.root.updateMatrixWorld(true);
+
+  const model = striker.models?.idle || striker.models?.kick;
+  const foot = model ? getPlantFootBone(model) : null;
+
+  if (!foot) {
+    applyStrikerRootPlacementFallback();
+    return;
+  }
+
+  striker.root.getWorldPosition(_tmpV);
+  const rx = _tmpV.x;
+  const rz = _tmpV.z;
+  foot.getWorldPosition(_tmpV);
+  const offX = _tmpV.x - rx;
+  const offZ = _tmpV.z - rz;
+
+  striker.root.position.set(
+    BALL_SPOT_X - offX,
+    0,
+    BALL_SPOT_Z - offZ + STRIKER_START_OFFSET_Z + strikeTuneNum('rootOffsetZ', 0),
+  );
+  striker.root.rotation.y = Math.PI + strikeTuneNum('strikerYaw', -0.28);
+
+  striker.root.updateMatrixWorld(true);
+  if (DEBUG_PLANT_FOOT && ballMesh) {
+    foot.getWorldPosition(_tmpV);
+    console.log('Foot:', _tmpV.clone());
+    console.log('Ball:', ballMesh.position.clone());
+  }
+}
+
+function applyStrikerRootPlacement() {
+  alignStrikerToBall();
 }
 
 const GMSG=["Net kose! 🔥","Tam isabet! ✨","Harika sut! 💥","Ust kose! 🎯","Gecilmez! ⚡"];
@@ -712,6 +775,7 @@ function shootAt(worldTarget, localTarget){
 
   // 1) hedef secildi → kick başlat
   pendingShotTimer=setTimeout(()=>{
+    applyStrikerRootPlacement();
     playAnim(striker,'kick');
     const contactDelayMs=Math.round(getKickContactDelaySec()*1000);
 
@@ -1018,7 +1082,7 @@ function _setupStriker(idle){
   }
   striker.current='idle';
   applyStrikerRootPlacement();
-  console.log('[Striker] rootX', tunedStrikerRootX(), 'ballX', tunedBallX(), 'tune', !!strikerStrikeTune);
+  console.log('[Striker] rootX', striker.root.position.x, 'ballX', tunedBallX(), 'tune', !!strikerStrikeTune);
 }
 
 function _addStrikerAnim(fbx,name,loopType){
