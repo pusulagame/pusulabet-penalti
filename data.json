@@ -8,7 +8,7 @@
       "players": []
     },
     "penalty": {
-      "active": false,
+      "active": true,
       "total_plays": 0,
       "started_at": null,
       "players": [],
