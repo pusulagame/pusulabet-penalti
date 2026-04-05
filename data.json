@@ -3,12 +3,12 @@
   "games": {
     "puzzle": {
       "active": false,
-      "total_plays": 0,
+      "total_plays": 56,
       "started_at": null,
       "players": []
     },
     "penalty": {
-      "active": true,
+      "active": false,
       "total_plays": 0,
       "started_at": null,
       "players": [],
