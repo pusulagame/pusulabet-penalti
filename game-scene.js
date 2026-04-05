@@ -729,17 +729,14 @@ function shootAt(worldTarget, localTarget){
 
   const yN=(lp.y-goalLocalRect.yMin)/Math.max(0.01,(goalLocalRect.yMax-goalLocalRect.yMin));
 
-  // Zorluk dengesi: hedeflenen sut basina gol olasiligi ~0.2466 (≈ %24.7)
-  // (5 sutta >=3 gol kazanma olasiligi ≈ %10)
-  // Daha kolay: taban gol olasiligi arttirildi
-  const pGoalBase = 0.44;
+  // Taban gol olasılığı (pGoalBase) ve köşe/yükseklik bonusu — biraz kolaylaştırıldı
+  const pGoalBase = 0.52;
   const cornerScore = clamp(Math.abs(dx)/Math.max(0.001, halfW), 0, 1); // 0 merkez, 1 kose
   const heightScore = clamp(yN, 0, 1); // 0 alt, 1 ust
-  // Kullanicinin kose/ust tercihine kucuk odul, toplam ortalama pGoalBase etrafinda kalir
   const pGoal = clamp(
     pGoalBase + 0.07*(cornerScore-0.5) + 0.05*(heightScore-0.5),
-    0.18,
-    0.62
+    0.22,
+    0.68
   );
   const saved = Math.random() > pGoal;
 

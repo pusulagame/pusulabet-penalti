@@ -1,8 +1,6 @@
 import { assetUrl } from './assets.js';
 
 const ROW_LOGOS = {
-  ldLogoTs: 'logo/ts_logo.png',
-  ldLogoGs: 'logo/gs_logo.png',
   ldLogoFb: 'logo/fb_logo.png',
   ldLogoBjk: 'logo/bjk_logo.png',
 };

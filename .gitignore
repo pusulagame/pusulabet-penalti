@@ -6,4 +6,3 @@ env
 venv/
 .DS_Store
 .claude/
-bot.py
